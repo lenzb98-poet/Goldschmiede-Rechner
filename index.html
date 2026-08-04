@@ -442,6 +442,15 @@
           <span class="unit">mm</span>
         </div>
       </div>
+
+      <div class="field">
+        <label>Zugabe (Lötfuge, Feilen)</label>
+        <div class="input-with-unit">
+          <input type="text" inputmode="decimal" enterkeyhint="done" id="ring-zugabe" placeholder="0">
+          <span class="unit">mm</span>
+        </div>
+        <div class="field-hint">Wird zur Zuschnittlänge dazugerechnet. Leer = 0 mm.</div>
+      </div>
     </div>
 
     <div class="card" id="ring-output">
@@ -449,16 +458,7 @@
     </div>
 
     <details class="card advanced">
-      <summary>Erweitert: Zugabe &amp; Korrekturfaktor</summary>
-
-      <div class="field">
-        <label>Zugabe (Lötfuge, Feilen)</label>
-        <div class="input-with-unit">
-          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-zugabe" placeholder="0">
-          <span class="unit">mm</span>
-        </div>
-        <div class="field-hint">Wird zur Zuschnittlänge dazugerechnet. Leer = 0 mm.</div>
-      </div>
+      <summary>Erweitert: Korrekturfaktor</summary>
 
       <div class="field">
         <label>Lage der neutralen Faser</label>
@@ -586,7 +586,7 @@
 
     e.preventDefault();
     var felder = Array.prototype.slice.call(panel.querySelectorAll("input"))
-      .filter(function (i) { return i.offsetParent !== null; }); // versteckte Felder (z. B. in geschlossenen <details>) überspringen
+      .filter(function (i) { return i.offsetParent !== null && !i.closest("details:not([open])"); }); // versteckte Felder (z. B. in geschlossenen <details>) überspringen
     var next = felder[felder.indexOf(el) + 1];
     if (next) {
       next.focus();
