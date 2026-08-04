@@ -262,27 +262,27 @@
     color: var(--gold-dim);
   }
 
-  /* --- "Später ergänzen"-Notiz --- */
-  .future {
-    font-size: 0.8rem;
-    line-height: 1.5;
-    color: var(--text-dim);
-  }
-
-  .future summary {
+  /* --- Erweiterte Einstellungen (Zugabe, Korrekturfaktor) --- */
+  .advanced summary {
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--gold-dim);
   }
 
-  .future ul {
-    margin: 0.6rem 0 0;
-    padding-left: 1.1rem;
+  .advanced[open] summary { margin-bottom: 1.1rem; }
+
+  .advanced .field-hint {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-top: 0.35rem;
   }
 
-  .future li { margin-bottom: 0.4rem; }
-  .future li:last-child { margin-bottom: 0; }
+  .extra-note {
+    font-size: 0.9rem;
+    color: var(--gold-dim);
+    margin-top: 0.4rem;
+  }
 </style>
 </head>
 <body>
@@ -319,7 +319,7 @@
       <div class="field">
         <label>Materialstärke s</label>
         <div class="input-with-unit">
-          <input type="text" inputmode="decimal" enterkeyhint="done" id="ring-thickness" placeholder="z. B. 1,5">
+          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-thickness" placeholder="z. B. 1,5">
           <span class="unit">mm</span>
         </div>
       </div>
@@ -329,12 +329,25 @@
       <div class="placeholder">Werte eingeben, um das Ergebnis zu sehen.</div>
     </div>
 
-    <details class="card future">
-      <summary>Später ergänzen</summary>
-      <ul>
-        <li>Optionale <strong>Zugabe</strong> für Lötfuge und Feilen</li>
-        <li><strong>Korrekturfaktor k</strong> für die Lage der neutralen Faser: bei sehr dickem Material im Verhältnis zum Durchmesser wandert sie leicht nach innen. Statt s/2 dann k × s, üblich zwischen 0,4 und 0,5.</li>
-      </ul>
+    <details class="card advanced">
+      <summary>Erweitert: Zugabe &amp; Korrekturfaktor</summary>
+
+      <div class="field">
+        <label>Zugabe (Lötfuge, Feilen)</label>
+        <div class="input-with-unit">
+          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-zugabe" placeholder="0">
+          <span class="unit">mm</span>
+        </div>
+        <div class="field-hint">Wird zur Zuschnittlänge dazugerechnet. Leer = 0 mm.</div>
+      </div>
+
+      <div class="field">
+        <label>Korrekturfaktor k</label>
+        <div class="input-with-unit">
+          <input type="text" inputmode="decimal" enterkeyhint="done" id="ring-k" placeholder="0,5">
+        </div>
+        <div class="field-hint">Lage der neutralen Faser statt s/2. Üblich 0,4–0,5. Leer = 0,5.</div>
+      </div>
     </details>
   </section>
 
@@ -422,7 +435,8 @@
     if (!panel) return;
 
     e.preventDefault();
-    var felder = Array.prototype.slice.call(panel.querySelectorAll("input"));
+    var felder = Array.prototype.slice.call(panel.querySelectorAll("input"))
+      .filter(function (i) { return i.offsetParent !== null; }); // versteckte Felder (z. B. in geschlossenen <details>) überspringen
     var next = felder[felder.indexOf(el) + 1];
     if (next) {
       next.focus();
@@ -438,6 +452,8 @@
   var valueLabel = document.getElementById("ring-value-label");
   var valueInput = document.getElementById("ring-value");
   var thicknessInput = document.getElementById("ring-thickness");
+  var zugabeInput = document.getElementById("ring-zugabe");
+  var kInput = document.getElementById("ring-k");
   var output = document.getElementById("ring-output");
 
   modeButtons.forEach(function (btn) {
@@ -475,22 +491,35 @@
       return;
     }
 
+    // Zugabe (Lötfuge, Feilen): optional, leer oder ungültig -> 0
+    var zugabe = parseDe(zugabeInput.value);
+    if (zugabeInput.value.trim() === "" || isNaN(zugabe) || zugabe < 0) zugabe = 0;
+
+    // Korrekturfaktor k für die Lage der neutralen Faser: optional, leer oder ungültig -> 0,5 (= s/2)
+    var k = parseDe(kInput.value);
+    if (kInput.value.trim() === "" || isNaN(k) || k <= 0) k = 0.5;
+
     var D, U, L;
     if (mode === "umfang") {
       U = value;
       D = U / Math.PI;
-      L = U + Math.PI * s;
     } else {
       D = value;
       U = Math.PI * D;
-      L = Math.PI * (D + s);
     }
+    L = Math.PI * (D + 2 * k * s) + zugabe;
     var outerD = D + 2 * s;
+
+    var extras = [];
+    if (zugabe > 0) extras.push("Zugabe " + fmt(zugabe, 2) + " mm");
+    if (Math.abs(k - 0.5) > 1e-9) extras.push("k = " + fmt(k, 2));
+    var extraNote = extras.length ? '<div class="extra-note">' + extras.join(" · ") + "</div>" : "";
 
     output.innerHTML =
       '<div class="result-main">' +
         '<div class="label">Zuschnittlänge</div>' +
         '<div class="value">' + fmt(L, 2) + '<span class="unit">mm</span></div>' +
+        extraNote +
       '</div>' +
       '<div class="result-grid">' +
         '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
@@ -501,6 +530,8 @@
 
   valueInput.addEventListener("input", calcRing);
   thicknessInput.addEventListener("input", calcRing);
+  zugabeInput.addEventListener("input", calcRing);
+  kInput.addEventListener("input", calcRing);
 })();
 </script>
 
