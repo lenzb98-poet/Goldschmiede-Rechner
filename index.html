@@ -27,16 +27,47 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* --- Kopfzeile: Bildmarke + Wortmarke + Titel --- */
   header {
-    padding: 1.2rem 1rem 0.8rem;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    padding: 1rem 1rem 0.9rem;
+  }
+
+  .mark {
+    flex: 0 0 auto;
+    width: 4.4rem;
+    height: auto;
+    color: var(--gold);
+    display: block;
+  }
+
+  .lockup { min-width: 0; }
+
+  .wordmark {
+    font-size: 0.72rem;
+    letter-spacing: 0.34em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-bottom: 0.12rem;
   }
 
   header h1 {
     margin: 0;
-    font-size: 1.6rem;
-    letter-spacing: 0.02em;
+    font-size: 1.45rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     color: var(--gold);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 360px) {
+    .mark { width: 3.4rem; }
+    header h1 { font-size: 1.2rem; }
+    .wordmark { font-size: 0.62rem; letter-spacing: 0.26em; }
   }
 
   nav.tabs {
@@ -44,6 +75,7 @@
     overflow-x: auto;
     gap: 0.5rem;
     padding: 0.6rem 0.8rem;
+    border-top: 1px solid var(--border);
     border-bottom: 2px solid var(--border);
     -webkit-overflow-scrolling: touch;
   }
@@ -69,6 +101,9 @@
     background: var(--gold);
     border-color: var(--gold);
   }
+
+  .tab.pending { opacity: 0.62; }
+  .tab.pending.active { opacity: 1; }
 
   main {
     padding: 1rem;
@@ -120,9 +155,7 @@
     color: var(--text);
   }
 
-  .input-with-unit {
-    position: relative;
-  }
+  .input-with-unit { position: relative; }
 
   input[type="text"] {
     width: 100%;
@@ -215,19 +248,49 @@
     font-size: 1.05rem;
     padding: 1rem;
   }
+
+  /* --- noch nicht gebaute Module --- */
+  .soon h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.35rem;
+    color: var(--gold);
+  }
+
+  .soon p {
+    margin: 0 0 1.1rem;
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  .badge {
+    display: inline-block;
+    border: 2px dashed var(--gold-dim);
+    border-radius: 0.6rem;
+    padding: 0.6rem 1rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--gold-dim);
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Goldschmiede-Rechner</h1>
+  <svg class="mark" viewBox="0 0 100 42.49" role="img" aria-label="Feuer und Flamme Goldschmiede">
+    <path d="M46.50 25.59L46.57 25.67L46.56 25.67L46.53 25.65L46.50 25.61L46.46 25.55L46.42 25.47L46.38 25.37L46.36 25.26L46.34 25.14L46.34 25.03L46.35 24.93L46.37 24.84L46.38 24.78L46.39 24.74L46.39 24.72L46.37 24.73L46.34 24.75L46.28 24.80L46.20 24.85L46.10 24.92L45.97 25.00L45.82 25.09L45.64 25.18L45.44 25.28L45.21 25.38L44.96 25.48L44.69 25.57L44.40 25.67L44.08 25.76L43.75 25.85L43.39 25.94L43.02 26.02L42.63 26.09L42.23 26.16L41.81 26.22L41.37 26.27L40.93 26.31L40.47 26.35L40.00 26.38L39.52 26.39L39.03 26.40L38.53 26.40L38.03 26.38L37.53 26.36L37.02 26.33L36.51 26.28L36.00 26.23L35.49 26.16L34.99 26.08L34.49 25.99L33.99 25.90L33.51 25.79L33.03 25.67L32.56 25.54L32.11 25.40L31.67 25.25L31.24 25.10L30.84 24.94L30.45 24.77L30.08 24.59L29.74 24.41L29.42 24.22L29.12 24.04L28.86 23.85L28.62 23.67L28.40 23.49L28.22 23.32L28.07 23.15L27.95 23.00L27.86 22.87L27.79 22.75L27.75 22.65L27.72 22.57L27.71 22.52L27.71 22.47L27.72 22.45L27.72 22.42L27.73 22.40L27.75 22.37L27.77 22.33L27.80 22.26L27.85 22.18L27.92 22.07L28.02 21.93L28.15 21.78L28.32 21.61L28.52 21.42L28.75 21.22L29.03 21.01L29.35 20.79L29.70 20.57L30.10 20.34L30.53 20.12L31.00 19.89L31.50 19.67L32.04 19.46L32.61 19.25L33.22 19.05L33.85 18.85L34.52 18.67L35.21 18.50L35.93 18.33L36.68 18.19L37.45 18.05L38.24 17.93L39.05 17.82L39.87 17.73L40.72 17.65L41.58 17.59L42.45 17.55L43.33 17.53L44.22 17.52L45.12 17.53L46.02 17.55L46.93 17.60L47.83 17.66L48.74 17.74L49.63 17.84L50.53 17.96L51.41 18.10L52.28 18.25L53.14 18.42L53.99 18.61L54.82 18.81L55.62 19.04L56.41 19.27L57.17 19.52L57.90 19.79L58.61 20.07L59.28 20.36L59.92 20.66L60.52 20.97L61.09 21.28L61.62 21.61L62.10 21.93L62.54 22.26L62.93 22.58L63.28 22.90L63.59 23.21L63.84 23.51L64.06 23.79L64.23 24.06L64.36 24.30L64.45 24.52L64.52 24.72L64.56 24.89L64.57 25.06L64.58 25.21L64.57 25.36L64.54 25.51L64.49 25.68L64.42 25.87L64.33 26.08L64.19 26.32L64.02 26.59L63.80 26.87L63.53 27.18L63.21 27.51L62.84 27.85L62.41 28.20L61.92 28.56L61.38 28.92L60.79 29.29L60.14 29.65L59.44 30.01L58.69 30.36L57.89 30.70L57.05 31.04L56.15 31.36L55.22 31.67L54.24 31.96L53.22 32.24L52.17 32.49L51.08 32.74L49.96 32.96L48.81 33.16L47.63 33.34L46.42 33.49L45.19 33.63L43.94 33.74L42.68 33.82L41.40 33.88L40.10 33.92L38.80 33.93L37.49 33.92L36.18 33.88L34.87 33.81L33.56 33.72L32.25 33.61L30.95 33.46L29.67 33.29L28.40 33.10L27.14 32.88L25.91 32.63L24.69 32.37L23.51 32.07L22.35 31.76L21.23 31.42L20.14 31.07L19.09 30.69L18.08 30.29L17.12 29.88L16.20 29.45L15.33 29.01L14.52 28.56L13.76 28.10L13.06 27.63L12.42 27.16L11.83 26.69L11.32 26.22L10.86 25.77L10.47 25.32L10.14 24.89L9.87 24.48L9.65 24.10L9.49 23.74L9.37 23.41L9.29 23.10L9.25 22.80L9.23 22.53L9.24 22.25L9.28 21.97L9.35 21.67L9.46 21.35L9.60 21.01L9.80 20.63L10.05 20.23L10.37 19.80L10.75 19.35L11.19 18.88L11.71 18.39L12.31 17.89L12.97 17.39L13.70 16.88L14.51 16.38L15.38 15.88L16.33 15.38L17.33 14.90L18.41 14.42L19.54 13.97L20.73 13.53L21.98 13.10L23.28 12.70L24.63 12.33L26.03 11.97L27.47 11.64L28.96 11.34L30.48 11.06L32.04 10.81L33.63 10.59L35.25 10.40L36.90 10.25L38.57 10.12L40.26 10.03L41.96 9.97L43.67 9.94L45.39 9.95L47.12 9.99L48.84 10.06L50.56 10.17L52.28 10.31L53.98 10.48L55.67 10.69L57.34 10.93L58.99 11.21L60.62 11.51L62.21 11.85L63.77 12.22L65.29 12.62L66.80 13.05L68.31 13.51L69.79 13.99L71.25 14.49L72.69 15.01L74.10 15.55L75.49 16.11L76.84 16.69L78.17 17.29L79.47 17.92L80.73 18.56L81.95 19.23L83.30 19.65L84.62 20.09L85.92 20.56L87.19 21.06L88.42 21.61L89.62 22.19L90.78 22.80L91.89 23.47L92.96 24.17L93.98 24.92L94.95 25.72L95.86 26.57L96.70 27.48L97.48 28.45L98.17 29.48L98.78 30.57L99.29 31.73L99.68 32.95L99.93 34.24L99.93 34.24L100.00 32.92L100.00 31.59L99.91 30.25L99.73 28.90L99.44 27.55L99.06 26.20L98.58 24.86L98.01 23.52L97.36 22.19L96.62 20.88L95.80 19.59L94.91 18.32L93.95 17.07L92.93 15.85L91.84 14.65L90.70 13.47L89.51 12.32L88.28 11.20L86.99 10.12L85.51 9.34L84.02 8.60L82.49 7.89L80.95 7.21L79.39 6.56L77.81 5.95L76.21 5.36L74.59 4.79L72.96 4.26L71.30 3.74L69.63 3.26L67.92 2.79L66.16 2.35L64.37 1.95L62.55 1.58L60.70 1.25L58.84 0.96L56.95 0.71L55.06 0.50L53.15 0.32L51.23 0.18L49.31 0.09L47.39 0.02L45.47 0.00L43.55 0.01L41.65 0.06L39.75 0.15L37.87 0.28L36.01 0.44L34.16 0.63L32.34 0.87L30.55 1.13L28.78 1.43L27.05 1.77L25.35 2.14L23.69 2.54L22.06 2.97L20.48 3.44L18.94 3.93L17.45 4.46L16.00 5.02L14.60 5.61L13.25 6.23L11.96 6.87L10.72 7.55L9.53 8.26L8.40 9.00L7.32 9.77L6.31 10.57L5.35 11.40L4.46 12.28L3.64 13.18L2.88 14.13L2.20 15.11L1.60 16.14L1.08 17.20L0.66 18.30L0.33 19.42L0.11 20.58L0.00 21.74L0.00 22.91L0.12 24.07L0.34 25.21L0.66 26.31L1.08 27.38L1.59 28.41L2.18 29.39L2.84 30.33L3.56 31.22L4.34 32.07L5.18 32.87L6.07 33.64L7.01 34.37L8.00 35.06L9.03 35.72L10.11 36.35L11.22 36.94L12.38 37.50L13.57 38.03L14.79 38.53L16.05 39.00L17.34 39.45L18.66 39.86L20.01 40.24L21.38 40.59L22.77 40.91L24.18 41.20L25.61 41.46L27.05 41.69L28.51 41.90L29.98 42.07L31.45 42.21L32.93 42.32L34.42 42.41L35.90 42.46L37.38 42.49L38.86 42.48L40.33 42.45L41.79 42.38L43.24 42.29L44.67 42.18L46.09 42.03L47.49 41.86L48.86 41.66L50.22 41.43L51.55 41.18L52.86 40.90L54.13 40.60L55.38 40.27L56.59 39.92L57.77 39.54L58.92 39.14L60.03 38.72L61.10 38.27L62.14 37.81L63.13 37.31L64.09 36.80L65.00 36.26L65.87 35.70L66.70 35.11L67.48 34.50L68.22 33.86L68.91 33.20L69.55 32.50L70.14 31.77L70.67 31.02L71.14 30.23L71.55 29.40L71.89 28.55L72.15 27.67L72.33 26.77L72.43 25.86L72.43 24.95L72.35 24.04L72.18 23.16L71.93 22.30L71.61 21.47L71.22 20.67L70.77 19.92L70.27 19.20L69.72 18.53L69.13 17.88L68.49 17.28L67.82 16.70L67.12 16.16L66.38 15.64L65.62 15.16L64.82 14.70L64.00 14.26L63.15 13.85L62.28 13.47L61.38 13.10L60.46 12.77L59.52 12.45L58.56 12.16L57.59 11.88L56.60 11.64L55.60 11.41L54.58 11.20L53.56 11.02L52.52 10.86L51.48 10.72L50.44 10.60L49.39 10.51L48.33 10.44L47.28 10.38L46.23 10.35L45.19 10.34L44.15 10.35L43.12 10.38L42.09 10.43L41.08 10.50L40.08 10.59L39.09 10.70L38.12 10.83L37.16 10.98L36.22 11.14L35.30 11.33L34.40 11.53L33.52 11.75L32.67 11.98L31.83 12.24L31.02 12.50L30.24 12.79L29.48 13.09L28.75 13.41L28.05 13.74L27.37 14.09L26.72 14.46L26.10 14.84L25.51 15.25L24.95 15.67L24.42 16.11L23.92 16.57L23.45 17.05L23.02 17.55L22.62 18.09L22.27 18.64L21.96 19.23L21.69 19.83L21.49 20.47L21.34 21.11L21.25 21.77L21.23 22.44L21.27 23.10L21.38 23.75L21.55 24.37L21.77 24.97L22.04 25.54L22.35 26.08L22.70 26.59L23.07 27.06L23.48 27.50L23.91 27.92L24.37 28.31L24.84 28.67L25.33 29.01L25.84 29.33L26.36 29.63L26.90 29.91L27.45 30.17L28.02 30.41L28.59 30.64L29.18 30.85L29.77 31.05L30.38 31.23L30.99 31.39L31.61 31.54L32.24 31.67L32.87 31.79L33.50 31.89L34.13 31.98L34.77 32.06L35.41 32.12L36.04 32.17L36.68 32.20L37.31 32.22L37.93 32.23L38.55 32.22L39.17 32.21L39.78 32.17L40.38 32.13L40.97 32.08L41.55 32.01L42.12 31.93L42.67 31.84L43.22 31.74L43.75 31.63L44.27 31.51L44.78 31.38L45.27 31.24L45.75 31.09L46.21 30.92L46.66 30.75L47.09 30.57L47.50 30.38L47.90 30.17L48.29 29.96L48.66 29.73L49.01 29.50L49.34 29.24L49.66 28.98L49.97 28.70L50.25 28.40L50.52 28.07L50.76 27.73L50.98 27.37L51.17 26.98L51.32 26.57L51.44 26.14L51.51 25.70L51.54 25.25L51.51 24.80L51.44 24.36L51.32 23.95L51.17 23.55L50.98 23.19L50.77 22.85L50.54 22.55L50.29 22.27L50.09 22.08L49.66 21.72L49.15 21.47L48.61 21.34L48.04 21.34L47.49 21.46L46.98 21.69L46.54 22.04L46.19 22.48L45.94 22.98L45.81 23.53L45.80 24.09L45.92 24.64L46.16 25.15Z" fill="currentColor"/>
+  </svg>
+  <div class="lockup">
+    <div class="wordmark">Feuer und Flamme</div>
+    <h1>Goldschmiede-Rechner</h1>
+  </div>
 </header>
 
 <nav class="tabs" id="tabs">
   <button class="tab active" data-tab="ring">Ringrechner</button>
 </nav>
 
-<main>
+<main id="panels">
 
   <section class="panel active" id="panel-ring">
     <div class="card">
@@ -242,7 +305,7 @@
       <div class="field">
         <label id="ring-value-label"># Innenumfang (Ringgröße)</label>
         <div class="input-with-unit">
-          <input type="text" inputmode="decimal" id="ring-value" placeholder="z. B. 54">
+          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-value" placeholder="z. B. 54">
           <span class="unit">mm</span>
         </div>
       </div>
@@ -250,7 +313,7 @@
       <div class="field">
         <label>Materialstärke s</label>
         <div class="input-with-unit">
-          <input type="text" inputmode="decimal" id="ring-thickness" placeholder="z. B. 1,5">
+          <input type="text" inputmode="decimal" enterkeyhint="done" id="ring-thickness" placeholder="z. B. 1,5">
           <span class="unit">mm</span>
         </div>
       </div>
@@ -281,8 +344,50 @@
     });
   }
 
-  // --- Tab switching (generic, ready for future modules) ---
-  var tabs = document.querySelectorAll(".tab");
+  // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
+  var kommende = [
+    { id: "umfang",   tab: "Umfang & Ø",  titel: "2 · Umfang und Durchmesser",
+      text: "Reiner Umrechner in beide Richtungen, dazu eine Ringgrößentabelle zum Nachschlagen." },
+    { id: "legierung", tab: "Legierung",       titel: "3 · Legierungsrechnung",
+      text: "Wie viel Feingold und wie viel Zuschlag für x Gramm in y Karat. Dazu der umgekehrte Fall: vorhandenes Material hochlegieren oder abstrecken." },
+    { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
+      text: "Nachschlagetafel mit Name und Umriss." },
+    { id: "stein",    tab: "Steingewicht",     titel: "5 · Steingewicht",
+      text: "Maße plus Schliffform plus Steinart ergibt das Karatgewicht. Maße × Formfaktor × Dichte, die Rundistenstärke kommt als Zuschlag dazu." },
+    { id: "wert",     tab: "Materialwert",     titel: "6 · Materialwert",
+      text: "Gewicht plus Feingehalt plus Tagespreis ergibt den Wert. Praktisch beim Umschmelzen von Altgold." },
+    { id: "einheiten", tab: "Einheiten",       titel: "7 · Einheiten",
+      text: "mm, Gramm, Karat, Pennyweight, Unze." },
+    { id: "mohs",     tab: "Mohshärte",   titel: "8 · Mohshärte",
+      text: "Nachschlag, bei dem Stein, Name und Härte zusammen zu sehen sind." }
+  ];
+
+  var tabBar = document.getElementById("tabs");
+  var panelHost = document.getElementById("panels");
+
+  kommende.forEach(function (m) {
+    var btn = document.createElement("button");
+    btn.className = "tab pending";
+    btn.setAttribute("data-tab", m.id);
+    btn.textContent = m.tab;
+    tabBar.appendChild(btn);
+
+    var sec = document.createElement("section");
+    sec.className = "panel";
+    sec.id = "panel-" + m.id;
+    sec.innerHTML =
+      '<div class="card soon">' +
+        '<h2></h2>' +
+        '<p></p>' +
+        '<div class="badge">wird bald erstellt</div>' +
+      '</div>';
+    sec.querySelector("h2").textContent = m.titel;
+    sec.querySelector("p").textContent = m.text;
+    panelHost.appendChild(sec);
+  });
+
+  // --- Tab-Umschaltung ---
+  var tabs = tabBar.querySelectorAll(".tab");
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
       tabs.forEach(function (t) { t.classList.remove("active"); });
@@ -294,7 +399,26 @@
     });
   });
 
-  // --- Ringrechner ---
+  // --- Enter springt ins nächste Eingabefeld desselben Panels ---
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    var el = e.target;
+    if (!el || el.tagName !== "INPUT") return;
+    var panel = el.closest(".panel");
+    if (!panel) return;
+
+    e.preventDefault();
+    var felder = Array.prototype.slice.call(panel.querySelectorAll("input"));
+    var next = felder[felder.indexOf(el) + 1];
+    if (next) {
+      next.focus();
+      next.select();
+    } else {
+      el.blur();   // letztes Feld: Tastatur schließen
+    }
+  });
+
+  // --- Modul 1: Ringrechner ---
   var mode = "umfang"; // "umfang" | "durchmesser"
   var modeButtons = document.querySelectorAll("#ring-mode button");
   var valueLabel = document.getElementById("ring-value-label");
