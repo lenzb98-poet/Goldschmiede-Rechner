@@ -283,6 +283,68 @@
     color: var(--gold-dim);
     margin-top: 0.4rem;
   }
+
+  /* --- Schieberegler: Lage der neutralen Faser --- */
+  .k-explainer {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--text-dim);
+    margin: 0 0 1.1rem;
+  }
+
+  .k-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.5rem;
+    border-radius: 0.3rem;
+    background: linear-gradient(to right, var(--gold-dim), var(--border));
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--gold);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--gold);
+    cursor: pointer;
+  }
+
+  .k-value {
+    flex: 0 0 auto;
+    min-width: 4.2rem;
+    text-align: right;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--gold);
+  }
+
+  .k-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-top: 0.4rem;
+  }
 </style>
 </head>
 <body>
@@ -342,11 +404,23 @@
       </div>
 
       <div class="field">
-        <label>Korrekturfaktor k</label>
-        <div class="input-with-unit">
-          <input type="text" inputmode="decimal" enterkeyhint="done" id="ring-k" placeholder="0,5">
+        <label>Lage der neutralen Faser</label>
+        <p class="k-explainer">
+          Beim Biegen dehnt sich die Außenseite des Materials, die Innenseite staucht sich.
+          Dazwischen liegt eine Zone, die ihre Länge behält — die neutrale Faser. Bei dünnem
+          Draht liegt sie genau in der Mitte der Materialstärke. Ist das Material im Verhältnis
+          zum Ringdurchmesser sehr dick, wandert sie etwas Richtung Innenseite: der Ring braucht
+          dann minimal weniger Material, als die einfache Rechnung annimmt. Im Zweifel bei
+          „Mitte" belassen.
+        </p>
+        <div class="k-row">
+          <input type="range" id="ring-k" min="0.40" max="0.50" step="0.005" value="0.5">
+          <span class="k-value" id="ring-k-value">Mitte</span>
         </div>
-        <div class="field-hint">Lage der neutralen Faser statt s/2. Üblich 0,4–0,5. Leer = 0,5.</div>
+        <div class="k-scale">
+          <span>0,40 · dickes Material</span>
+          <span>0,50 · Mitte</span>
+        </div>
       </div>
     </details>
   </section>
@@ -454,7 +528,17 @@
   var thicknessInput = document.getElementById("ring-thickness");
   var zugabeInput = document.getElementById("ring-zugabe");
   var kInput = document.getElementById("ring-k");
+  var kValueLabel = document.getElementById("ring-k-value");
   var output = document.getElementById("ring-output");
+
+  function kAnzeige(k) {
+    return Math.abs(k - 0.5) < 1e-9 ? "Mitte" : fmt(k, 3).replace(/0$/, "");
+  }
+
+  kInput.addEventListener("input", function () {
+    kValueLabel.textContent = kAnzeige(parseFloat(kInput.value));
+    calcRing();
+  });
 
   modeButtons.forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -495,9 +579,9 @@
     var zugabe = parseDe(zugabeInput.value);
     if (zugabeInput.value.trim() === "" || isNaN(zugabe) || zugabe < 0) zugabe = 0;
 
-    // Korrekturfaktor k für die Lage der neutralen Faser: optional, leer oder ungültig -> 0,5 (= s/2)
-    var k = parseDe(kInput.value);
-    if (kInput.value.trim() === "" || isNaN(k) || k <= 0) k = 0.5;
+    // Lage der neutralen Faser (Korrekturfaktor k): Schieberegler liefert immer einen gültigen Wert
+    var k = parseFloat(kInput.value);
+    if (isNaN(k)) k = 0.5;
 
     var D, U, L;
     if (mode === "umfang") {
@@ -512,7 +596,7 @@
 
     var extras = [];
     if (zugabe > 0) extras.push("Zugabe " + fmt(zugabe, 2) + " mm");
-    if (Math.abs(k - 0.5) > 1e-9) extras.push("k = " + fmt(k, 2));
+    if (Math.abs(k - 0.5) > 1e-9) extras.push("neutrale Faser bei " + kAnzeige(k));
     var extraNote = extras.length ? '<div class="extra-note">' + extras.join(" · ") + "</div>" : "";
 
     output.innerHTML =
@@ -531,7 +615,6 @@
   valueInput.addEventListener("input", calcRing);
   thicknessInput.addEventListener("input", calcRing);
   zugabeInput.addEventListener("input", calcRing);
-  kInput.addEventListener("input", calcRing);
 })();
 </script>
 
