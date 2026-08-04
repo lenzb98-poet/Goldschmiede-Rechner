@@ -234,13 +234,13 @@
       <div class="field">
         <label>Eingabe als</label>
         <div class="segmented" id="ring-mode">
-          <button data-mode="umfang" class="active">Innenumfang</button>
+          <button data-mode="umfang" class="active"># Innenumfang</button>
           <button data-mode="durchmesser">Innendurchmesser</button>
         </div>
       </div>
 
       <div class="field">
-        <label id="ring-value-label">Innenumfang (Ringgröße)</label>
+        <label id="ring-value-label"># Innenumfang (Ringgröße)</label>
         <div class="input-with-unit">
           <input type="text" inputmode="decimal" id="ring-value" placeholder="z. B. 54">
           <span class="unit">mm</span>
@@ -308,7 +308,7 @@
       btn.classList.add("active");
       mode = btn.getAttribute("data-mode");
       valueLabel.textContent = mode === "umfang"
-        ? "Innenumfang (Ringgröße)"
+        ? "# Innenumfang (Ringgröße)"
         : "Innendurchmesser";
       valueInput.placeholder = mode === "umfang" ? "z. B. 54" : "z. B. 17,2";
       calcRing();
@@ -356,7 +356,7 @@
       '</div>' +
       '<div class="result-grid">' +
         '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
-        '<div class="result-item"><div class="label">Innenumfang</div><div class="value">' + fmt(U, 2) + ' mm</div></div>' +
+        '<div class="result-item"><div class="label"># Innenumfang</div><div class="value">' + fmt(U, 2) + ' mm</div></div>' +
         '<div class="result-item"><div class="label">Außendurchmesser</div><div class="value">' + fmt(outerD, 2) + ' mm</div></div>' +
       '</div>';
   }
