@@ -578,6 +578,18 @@
 
   .kurs-stand.fehler { color: var(--danger); }
 
+  .kurs-diagnose {
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    text-align: left;
+    word-break: break-word;
+  }
+
   .kurs-retry {
     display: block;
     margin: 0.8rem auto 0;
@@ -747,6 +759,7 @@
         </div>
       </div>
       <div class="kurs-stand" id="kurs-stand">Kurse werden abgefragt …</div>
+      <div class="kurs-diagnose" id="kurs-diagnose" hidden></div>
       <button type="button" class="kurs-retry" id="kurs-retry" hidden>erneut abfragen</button>
 
       <details class="advanced" id="kurs-hand-box">
@@ -1371,8 +1384,15 @@
    * und ein eingetragener Wert gilt immer vor dem abgefragten. So bleibt das
    * Modul auch dann brauchbar, wenn der Dienst tot ist oder kein Netz da ist.
    */
-  var API_METALL = "https://api.gold-api.com/price/";      // + XAG | XAU | XPT
-  var API_WECHSELKURS = "https://api.frankfurter.app/latest?from=USD&to=EUR";
+  // Je Quelle mehrere Adressen: die erste, die antwortet, gewinnt. So kostet
+  // ein Anbieterwechsel nur einen Eintrag in der Liste.
+  function API_METALL(symbol) {                            // symbol: XAG | XAU | XPT
+    return ["https://api.gold-api.com/price/" + symbol];
+  }
+  var API_WECHSELKURS = [
+    "https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR",  // neuer Sitz des Projekts
+    "https://api.frankfurter.app/latest?from=USD&to=EUR"           // alte Adresse, weiterhin gespiegelt
+  ];
   var UNZE_IN_GRAMM = 31.1034768;                          // Feinunze (Troy ounce)
   var ABFRAGE_TIMEOUT = 10000;                             // ms, damit nichts ewig hängt
 
@@ -1384,13 +1404,16 @@
   var liveKurse = { XAG: null, XAU: null, XPT: null };     // abgefragt, EUR je Gramm
   var handKurse = { XAG: null, XAU: null, XPT: null };     // von Hand eingetragen
   var liveStand = null;                                    // Zeitpunkt der letzten Abfrage
+  var kursDiagnose = document.getElementById("kurs-diagnose");
+  var NAME = { XAG: "Silber", XAU: "Gold", XPT: "Platin" };
 
-  // Die Seite als lokale Datei geöffnet? Browser behandeln file:// als
-  // undurchsichtigen Ursprung und blockieren Abfragen an fremde Server
-  // grundsätzlich — unabhängig davon, was der Server an CORS-Kopfzeilen
-  // schickt. In der Vorschau eines Editors ist das der Normalfall und die
-  // häufigste Ursache für "geht nicht, obwohl Netz da ist".
-  var lokalGeoeffnet = location.protocol === "file:";
+  // Läuft die Seite über einen echten Web-Ursprung? Nur http/https zählen.
+  // Alles andere — file://, die eigenen Schemata von Editor-Vorschauen,
+  // about: — behandeln Browser als undurchsichtigen Ursprung und blockieren
+  // Abfragen an fremde Server grundsätzlich, egal welche CORS-Kopfzeilen der
+  // Server schickt. Das ist die häufigste Ursache für "geht nicht, obwohl
+  // Netz da ist", und ein Test nur auf "file:" greift dafür zu kurz.
+  var echterUrsprung = location.protocol === "http:" || location.protocol === "https:";
 
   // Fehler so benennen, dass daraus hervorgeht, WO es klemmt. "Failed to
   // fetch" allein hilft in der Werkstatt niemandem weiter.
@@ -1455,77 +1478,108 @@
     kursStand.classList.toggle("fehler", !!istFehler && handAnzahl < METALLE.length);
   }
 
+  // Adressen der Reihe nach probieren, die erste brauchbare Antwort gewinnt.
+  function versucheReihe(urls) {
+    return urls.reduce(function (kette, url) {
+      return kette.catch(function () { return holeJson(url); });
+    }, Promise.reject(new Error("keine Adresse hinterlegt")));
+  }
+
   function zeigeKurse() {
     if (kursLaeuft) return;
     kursLaeuft = true;
 
     kursRetry.hidden = true;
+    kursDiagnose.hidden = true;
     setzeStand("Kurse werden abgefragt …", false, "");
     METALLE.forEach(function (m) {
       if (handKurse[m] == null) document.getElementById("kurs-" + m).textContent = "…";
     });
 
-    // Der Wechselkurs ist Pflicht — ohne ihn gibt es keinen Europreis.
-    // Die drei Metalle einzeln behandeln, damit ein Ausfall nicht die
-    // anderen beiden mitreißt.
-    holeJson(API_WECHSELKURS)
-      .catch(function (err) {
-        throw new Error("Wechselkurs: " + fehlerKlartext(err));
-      })
-      .then(function (fx) {
-        var eurProUsd = fx && fx.rates && fx.rates.EUR;
-        if (typeof eurProUsd !== "number" || !isFinite(eurProUsd) || eurProUsd <= 0) {
-          throw new Error("Wechselkurs: Antwort hat ein unerwartetes Format");
-        }
-        return Promise.allSettled(METALLE.map(function (m) {
-          return holeJson(API_METALL + m).then(function (d) {
-            return preisAus(d) * eurProUsd / UNZE_IN_GRAMM;
-          });
-        }));
-      })
-      .then(function (ergebnisse) {
-        var erfolge = 0;
-        var letzterFehler = null;
-        ergebnisse.forEach(function (e, i) {
-          if (e.status === "fulfilled") {
-            liveKurse[METALLE[i]] = e.value;
-            erfolge++;
-          } else {
-            liveKurse[METALLE[i]] = null;
-            letzterFehler = e.reason;
-          }
-        });
-        zeigeKachelwerte();
+    // Wechselkurs und Metalle bewusst PARALLEL und unabhängig voneinander.
+    // Vorher hing alles am Wechselkurs: schlug der fehl, wurden die
+    // Metallquellen nie angefasst — dann weiß man hinterher nicht, ob die
+    // überhaupt funktionieren. Jetzt meldet jede Quelle ihr eigenes Ergebnis.
+    var abfragen = [versucheReihe(API_WECHSELKURS)].concat(
+      METALLE.map(function (m) { return versucheReihe(API_METALL(m)); })
+    );
 
-        if (erfolge === 0) {
-          throw new Error("Metallkurse: " + fehlerKlartext(letzterFehler));
-        }
+    Promise.allSettled(abfragen).then(function (res) {
+      var fxErgebnis = res[0];
+      var metallErgebnisse = res.slice(1);
+      var diagnose = ['Seite läuft über "' + location.protocol + '"'];
 
+      // --- Wechselkurs auswerten ---
+      var eurProUsd = null;
+      var fxFehler = null;
+      if (fxErgebnis.status === "fulfilled") {
+        var r = fxErgebnis.value && fxErgebnis.value.rates && fxErgebnis.value.rates.EUR;
+        if (typeof r === "number" && isFinite(r) && r > 0) {
+          eurProUsd = r;
+          diagnose.push("Wechselkurs: ok (" + fmt(r, 4) + " EUR/USD)");
+        } else {
+          fxFehler = "Antwort hat ein unerwartetes Format";
+          diagnose.push("Wechselkurs: " + fxFehler);
+        }
+      } else {
+        fxFehler = fehlerKlartext(fxErgebnis.reason);
+        diagnose.push("Wechselkurs: " + fxFehler);
+      }
+
+      // --- Metalle auswerten (auch ohne Wechselkurs, für die Diagnose) ---
+      var erfolge = 0;
+      metallErgebnisse.forEach(function (e, i) {
+        var m = METALLE[i];
+        liveKurse[m] = null;
+        if (e.status !== "fulfilled") {
+          diagnose.push(NAME[m] + ": " + fehlerKlartext(e.reason));
+          return;
+        }
+        var usdProUnze;
+        try {
+          usdProUnze = preisAus(e.value);
+        } catch (err) {
+          diagnose.push(NAME[m] + ": " + err.message);
+          return;
+        }
+        diagnose.push(NAME[m] + ": ok (" + fmt(usdProUnze, 2) + " USD/oz)");
+        if (eurProUsd != null) {
+          liveKurse[m] = usdProUnze * eurProUsd / UNZE_IN_GRAMM;
+          erfolge++;
+        }
+      });
+
+      zeigeKachelwerte();
+      kursDiagnose.textContent = "Diagnose · " + diagnose.join(" · ");
+
+      if (erfolge > 0) {
         liveStand = new Date();
         var uhrzeit = liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
         setzeStand(
           "Stand: " + uhrzeit + " Uhr" + (erfolge < METALLE.length ? " · nicht alle Kurse erreichbar" : ""),
           false,
-          liveStand.toLocaleString("de-DE") + " · Quelle: " + API_METALL + ", Umrechnung über EZB-Referenzkurs"
+          liveStand.toLocaleString("de-DE") + " · Umrechnung über EZB-Referenzkurs"
         );
-      })
-      .catch(function (err) {
-        METALLE.forEach(function (m) { liveKurse[m] = null; });
-        zeigeKachelwerte();
-        var grund = err && err.message ? err.message : "unbekannter Fehler";
-        setzeStand(
-          "Kurse nicht abrufbar — " + grund +
-            (lokalGeoeffnet
-              ? ". Die Seite ist als lokale Datei geöffnet (file://); daraus blockieren Browser Abfragen an fremde Server grundsätzlich. Über GitHub Pages entfällt das."
-              : ". Kurse unten von Hand eintragen."),
-          true,
-          grund
-        );
-      })
-      .finally(function () {
-        kursLaeuft = false;
-        kursRetry.hidden = false;
-      });
+        kursDiagnose.hidden = erfolge === METALLE.length;
+        return;
+      }
+
+      // Nichts brauchbar: sagen, woran es liegt, und den Weg von Hand anbieten.
+      var grund = fxFehler ? "Wechselkurs: " + fxFehler : "keine Metallquelle erreichbar";
+      setzeStand(
+        "Kurse nicht abrufbar — " + grund +
+          (echterUrsprung
+            ? ". Kurse unten von Hand eintragen."
+            : '. Die Seite läuft über "' + location.protocol +
+              '", nicht über http oder https; daraus blockieren Browser Abfragen an fremde Server grundsätzlich. Über GitHub Pages entfällt das.'),
+        true,
+        grund
+      );
+      kursDiagnose.hidden = false;
+    }).finally(function () {
+      kursLaeuft = false;
+      kursRetry.hidden = false;
+    });
   }
 
   // Handeingabe: überschreibt den abgefragten Kurs, solange das Feld gefüllt ist.
