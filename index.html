@@ -748,6 +748,35 @@
       </div>
       <div class="kurs-stand" id="kurs-stand">Kurse werden abgefragt …</div>
       <button type="button" class="kurs-retry" id="kurs-retry" hidden>erneut abfragen</button>
+
+      <details class="advanced" id="kurs-hand-box">
+        <summary>Kurse von Hand eintragen</summary>
+        <div class="field-hint" style="margin-bottom:1rem">
+          Ein eingetragener Wert gilt vor dem abgefragten Kurs. Feld leeren, um wieder den
+          abgefragten Kurs zu verwenden.
+        </div>
+        <div class="field">
+          <label for="hand-XAG">Silber</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="hand-XAG" placeholder="z. B. 0,92">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hand-XAU">Gold</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="hand-XAU" placeholder="z. B. 78,40">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="hand-XPT">Platin</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="hand-XPT" placeholder="z. B. 28,45">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="card soon">
@@ -1327,18 +1356,20 @@
    * Die drei Kacheln zeigen den Preis je Gramm in Euro. Die Quellen liefern
    * beide etwas anderes, als hier gebraucht wird, deshalb zwei Schritte:
    *
-   *   1. Metallpreis in US-Dollar je Feinunze   (api.gold-api.com, ohne Schlüssel)
-   *   2. Wechselkurs USD -> EUR                 (frankfurter.app, EZB-Referenzkurse)
+   *   1. Metallpreis in US-Dollar je Feinunze   (API_METALL)
+   *   2. Wechselkurs USD -> EUR                 (API_WECHSELKURS, EZB-Referenzkurse)
    *
    *   Preis je Gramm [EUR] = Preis je Unze [USD] · (EUR/USD) / 31,1034768
    *
-   * Beide Dienste sind ohne Anmeldung und mit CORS nutzbar. Sollte einer
-   * ausfallen oder sein Format ändern, sind die beiden Konstanten unten die
-   * einzige Stelle, die angefasst werden muss.
+   * Fällt eine Quelle aus oder ändert ihr Format, sind die beiden Konstanten
+   * unten die einzige Stelle, die angefasst werden muss.
    *
    * Achtung: Das ist die einzige Stelle im Rechner, die eine Internet-
-   * verbindung braucht. Ohne Netz bleiben die Kacheln leer und es erscheint
-   * ein Hinweis — der Rest der App rechnet unverändert offline weiter.
+   * verbindung braucht — Grundsatz 1 der Spezifikation ist "läuft offline".
+   * Deshalb ist die Abfrage nur der bequeme Weg, nicht der einzige: unter
+   * "Kurse von Hand eintragen" lassen sich alle drei Preise selbst setzen,
+   * und ein eingetragener Wert gilt immer vor dem abgefragten. So bleibt das
+   * Modul auch dann brauchbar, wenn der Dienst tot ist oder kein Netz da ist.
    */
   var API_METALL = "https://api.gold-api.com/price/";      // + XAG | XAU | XPT
   var API_WECHSELKURS = "https://api.frankfurter.app/latest?from=USD&to=EUR";
@@ -1350,6 +1381,29 @@
   var kursRetry = document.getElementById("kurs-retry");
   var kursLaeuft = false;                                  // verhindert Doppelabfragen
 
+  var liveKurse = { XAG: null, XAU: null, XPT: null };     // abgefragt, EUR je Gramm
+  var handKurse = { XAG: null, XAU: null, XPT: null };     // von Hand eingetragen
+  var liveStand = null;                                    // Zeitpunkt der letzten Abfrage
+
+  // Die Seite als lokale Datei geöffnet? Browser behandeln file:// als
+  // undurchsichtigen Ursprung und blockieren Abfragen an fremde Server
+  // grundsätzlich — unabhängig davon, was der Server an CORS-Kopfzeilen
+  // schickt. In der Vorschau eines Editors ist das der Normalfall und die
+  // häufigste Ursache für "geht nicht, obwohl Netz da ist".
+  var lokalGeoeffnet = location.protocol === "file:";
+
+  // Fehler so benennen, dass daraus hervorgeht, WO es klemmt. "Failed to
+  // fetch" allein hilft in der Werkstatt niemandem weiter.
+  function fehlerKlartext(err) {
+    if (err && err.name === "AbortError") {
+      return "keine Antwort innerhalb von " + (ABFRAGE_TIMEOUT / 1000) + " Sekunden";
+    }
+    if (err instanceof TypeError) {
+      return "Server nicht erreichbar oder Abfrage vom Browser blockiert (CORS)";
+    }
+    return (err && err.message) ? err.message : "unbekannter Fehler";
+  }
+
   function holeJson(url) {
     // AbortController: ohne Zeitgrenze bliebe die Anzeige bei einem hängenden
     // Netz für immer auf "wird abgefragt".
@@ -1357,7 +1411,7 @@
     var timer = setTimeout(function () { ctrl.abort(); }, ABFRAGE_TIMEOUT);
     return fetch(url, { signal: ctrl.signal, cache: "no-store" })
       .then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (!r.ok) throw new Error("Server antwortet mit HTTP " + r.status);
         return r.json();
       })
       .finally(function () { clearTimeout(timer); });
@@ -1369,9 +1423,36 @@
     var p = daten && (daten.price != null ? daten.price : daten.rate);
     p = typeof p === "string" ? parseFloat(p) : p;
     if (typeof p !== "number" || !isFinite(p) || p <= 0) {
-      throw new Error("unerwartetes Format");
+      throw new Error("Antwort hat ein unerwartetes Format");
     }
     return p;
+  }
+
+  // Kacheln füllen: Handeingabe schlägt Abfrage, Abfrage schlägt "—".
+  function zeigeKachelwerte() {
+    METALLE.forEach(function (m) {
+      var v = handKurse[m] != null ? handKurse[m] : liveKurse[m];
+      // Silber liegt bei rund 1 €/g — dort sind zwei Stellen zu grob,
+      // um beim Abwiegen größerer Mengen sinnvoll zu bleiben.
+      document.getElementById("kurs-" + m).textContent =
+        v == null ? "—" : fmt(v, v < 10 ? 3 : 2);
+    });
+  }
+
+  function zaehleHand() {
+    return METALLE.filter(function (m) { return handKurse[m] != null; }).length;
+  }
+
+  function setzeStand(text, istFehler, tooltip) {
+    var handAnzahl = zaehleHand();
+    if (handAnzahl > 0) {
+      text += (text ? " · " : "") +
+        (handAnzahl === METALLE.length ? "alle Kurse von Hand eingetragen"
+                                       : handAnzahl + " von Hand eingetragen");
+    }
+    kursStand.textContent = text;
+    kursStand.title = tooltip || "";
+    kursStand.classList.toggle("fehler", !!istFehler && handAnzahl < METALLE.length);
   }
 
   function zeigeKurse() {
@@ -1379,64 +1460,89 @@
     kursLaeuft = true;
 
     kursRetry.hidden = true;
-    kursStand.classList.remove("fehler");
-    kursStand.textContent = "Kurse werden abgefragt …";
+    setzeStand("Kurse werden abgefragt …", false, "");
     METALLE.forEach(function (m) {
-      document.getElementById("kurs-" + m).textContent = "…";
+      if (handKurse[m] == null) document.getElementById("kurs-" + m).textContent = "…";
     });
 
     // Der Wechselkurs ist Pflicht — ohne ihn gibt es keinen Europreis.
     // Die drei Metalle einzeln behandeln, damit ein Ausfall nicht die
     // anderen beiden mitreißt.
     holeJson(API_WECHSELKURS)
+      .catch(function (err) {
+        throw new Error("Wechselkurs: " + fehlerKlartext(err));
+      })
       .then(function (fx) {
         var eurProUsd = fx && fx.rates && fx.rates.EUR;
         if (typeof eurProUsd !== "number" || !isFinite(eurProUsd) || eurProUsd <= 0) {
-          throw new Error("Wechselkurs unerwartetes Format");
+          throw new Error("Wechselkurs: Antwort hat ein unerwartetes Format");
         }
         return Promise.allSettled(METALLE.map(function (m) {
           return holeJson(API_METALL + m).then(function (d) {
-            return { symbol: m, euroProGramm: preisAus(d) * eurProUsd / UNZE_IN_GRAMM };
+            return preisAus(d) * eurProUsd / UNZE_IN_GRAMM;
           });
         }));
       })
       .then(function (ergebnisse) {
         var erfolge = 0;
+        var letzterFehler = null;
         ergebnisse.forEach(function (e, i) {
-          var feld = document.getElementById("kurs-" + METALLE[i]);
           if (e.status === "fulfilled") {
-            var v = e.value.euroProGramm;
-            // Silber liegt bei rund 1 €/g — dort sind zwei Stellen zu grob,
-            // um beim Abwiegen größerer Mengen sinnvoll zu bleiben.
-            feld.textContent = fmt(v, v < 10 ? 3 : 2);
+            liveKurse[METALLE[i]] = e.value;
             erfolge++;
           } else {
-            feld.textContent = "—";
+            liveKurse[METALLE[i]] = null;
+            letzterFehler = e.reason;
           }
         });
+        zeigeKachelwerte();
 
-        if (erfolge === 0) throw new Error("kein Metallkurs erreichbar");
+        if (erfolge === 0) {
+          throw new Error("Metallkurse: " + fehlerKlartext(letzterFehler));
+        }
 
-        var jetzt = new Date();
-        var uhrzeit = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-        kursStand.textContent = "Stand: " + uhrzeit + " Uhr" +
-          (erfolge < METALLE.length ? " · nicht alle Kurse erreichbar" : "");
-        kursStand.title = jetzt.toLocaleString("de-DE") +
-          " · Quelle: gold-api.com, Umrechnung über EZB-Referenzkurs";
-        kursRetry.hidden = false;
+        liveStand = new Date();
+        var uhrzeit = liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        setzeStand(
+          "Stand: " + uhrzeit + " Uhr" + (erfolge < METALLE.length ? " · nicht alle Kurse erreichbar" : ""),
+          false,
+          liveStand.toLocaleString("de-DE") + " · Quelle: " + API_METALL + ", Umrechnung über EZB-Referenzkurs"
+        );
       })
       .catch(function (err) {
-        METALLE.forEach(function (m) {
-          document.getElementById("kurs-" + m).textContent = "—";
-        });
-        kursStand.classList.add("fehler");
-        // Klartext für die Werkstatt, die technische Ursache in den Tooltip.
-        kursStand.textContent = "Kurse nicht abrufbar — dafür braucht der Rechner eine Internetverbindung.";
-        kursStand.title = "Grund: " + err.message;
-        kursRetry.hidden = false;
+        METALLE.forEach(function (m) { liveKurse[m] = null; });
+        zeigeKachelwerte();
+        var grund = err && err.message ? err.message : "unbekannter Fehler";
+        setzeStand(
+          "Kurse nicht abrufbar — " + grund +
+            (lokalGeoeffnet
+              ? ". Die Seite ist als lokale Datei geöffnet (file://); daraus blockieren Browser Abfragen an fremde Server grundsätzlich. Über GitHub Pages entfällt das."
+              : ". Kurse unten von Hand eintragen."),
+          true,
+          grund
+        );
       })
-      .finally(function () { kursLaeuft = false; });
+      .finally(function () {
+        kursLaeuft = false;
+        kursRetry.hidden = false;
+      });
   }
+
+  // Handeingabe: überschreibt den abgefragten Kurs, solange das Feld gefüllt ist.
+  METALLE.forEach(function (m) {
+    document.getElementById("hand-" + m).addEventListener("input", function () {
+      var v = parseDe(this.value);
+      handKurse[m] = (this.value.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
+      zeigeKachelwerte();
+      // Standzeile neu aufbauen, damit sichtbar bleibt, was gerade wirkt
+      if (liveStand && Object.keys(liveKurse).some(function (k) { return liveKurse[k] != null; })) {
+        setzeStand("Stand: " + liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr",
+          false, liveStand.toLocaleString("de-DE"));
+      } else {
+        setzeStand(zaehleHand() ? "" : "Kurse nicht abrufbar", zaehleHand() === 0, "");
+      }
+    });
+  });
 
   // Bei jedem Öffnen des Reiters neu abfragen (eigener Zuhörer, damit die
   // allgemeine Tab-Umschaltung unverändert bleibt).
