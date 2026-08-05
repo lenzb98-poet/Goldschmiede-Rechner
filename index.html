@@ -523,6 +523,73 @@
 
   .info-box.warn { border-left-color: var(--danger); }
   .info-box.warn .info-box-title { color: var(--danger); }
+
+  /* --- Tageskurse: drei Kacheln, je Edelmetall eingefärbt --- */
+  .kurs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+  }
+
+  .kurs-tile {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--metall);
+    border-radius: 0.7rem;
+    padding: 0.85rem 0.4rem 0.7rem;
+    text-align: center;
+    min-width: 0;
+  }
+
+  /* Farbton je Metall — bewusst kühl/neutral für Silber, warm für Gold,
+     blaugrau für Platin, damit die drei auch nebeneinander eindeutig sind. */
+  .metall-silber { --metall: #cfd6dc; }
+  .metall-gold   { --metall: #d4af37; }
+  .metall-platin { --metall: #8fb0c6; }
+
+  .kurs-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--metall);
+    margin-bottom: 0.35rem;
+  }
+
+  .kurs-preis {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+    word-break: break-word;
+  }
+
+  .kurs-einheit {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 0.2rem;
+  }
+
+  .kurs-stand {
+    margin-top: 0.9rem;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .kurs-stand.fehler { color: var(--danger); }
+
+  .kurs-retry {
+    display: block;
+    margin: 0.8rem auto 0;
+    background: var(--bg);
+    color: var(--gold-dim);
+    border: 2px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -534,6 +601,7 @@
 
 <nav class="tabs" id="tabs">
   <button class="tab active" data-tab="ring">Ringrechner</button>
+  <button class="tab" data-tab="wert">Materialwert</button>
 </nav>
 
 <main id="panels">
@@ -659,6 +727,36 @@
     </details>
   </section>
 
+  <section class="panel" id="panel-wert">
+    <div class="card">
+      <div class="kurs-grid">
+        <div class="kurs-tile metall-silber">
+          <div class="kurs-name">Silber</div>
+          <div class="kurs-preis" id="kurs-XAG">—</div>
+          <div class="kurs-einheit">€ / g</div>
+        </div>
+        <div class="kurs-tile metall-gold">
+          <div class="kurs-name">Gold</div>
+          <div class="kurs-preis" id="kurs-XAU">—</div>
+          <div class="kurs-einheit">€ / g</div>
+        </div>
+        <div class="kurs-tile metall-platin">
+          <div class="kurs-name">Platin</div>
+          <div class="kurs-preis" id="kurs-XPT">—</div>
+          <div class="kurs-einheit">€ / g</div>
+        </div>
+      </div>
+      <div class="kurs-stand" id="kurs-stand">Kurse werden abgefragt …</div>
+      <button type="button" class="kurs-retry" id="kurs-retry" hidden>erneut abfragen</button>
+    </div>
+
+    <div class="card soon">
+      <h2>6 · Materialwert</h2>
+      <p>Gewicht plus Feingehalt plus Tagespreis ergibt den Wert. Praktisch beim Umschmelzen von Altgold.</p>
+      <div class="badge">wird bald erstellt</div>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -680,9 +778,9 @@
   }
 
   // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
+  // "Materialwert" steht als eigenes Panel fest im HTML (Tageskurse) und
+  // fehlt hier deshalb bewusst.
   var kommende = [
-    { id: "wert",     tab: "Materialwert",     titel: "6 · Materialwert",
-      text: "Gewicht plus Feingehalt plus Tagespreis ergibt den Wert. Praktisch beim Umschmelzen von Altgold." },
     { id: "goldankauf", tab: "Goldankauf",     titel: "Goldankauf",
       text: "Ankaufspreis für Altgold: Gewicht, Feingehalt und Tagespreis abzüglich Ankaufsabschlag ergeben die Auszahlungssumme." },
     { id: "umfang",   tab: "Umfang & Ø",  titel: "2 · Umfang und Durchmesser",
@@ -1223,6 +1321,127 @@
   // und Korrekturfaktor-Anzeige sofort dazu passen, statt bis zur ersten
   // Bedienung den leeren Platzhalter zu zeigen.
   valueInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+  /* --- Modul 6: Materialwert — Tageskurse -----------------------------
+   *
+   * Die drei Kacheln zeigen den Preis je Gramm in Euro. Die Quellen liefern
+   * beide etwas anderes, als hier gebraucht wird, deshalb zwei Schritte:
+   *
+   *   1. Metallpreis in US-Dollar je Feinunze   (api.gold-api.com, ohne Schlüssel)
+   *   2. Wechselkurs USD -> EUR                 (frankfurter.app, EZB-Referenzkurse)
+   *
+   *   Preis je Gramm [EUR] = Preis je Unze [USD] · (EUR/USD) / 31,1034768
+   *
+   * Beide Dienste sind ohne Anmeldung und mit CORS nutzbar. Sollte einer
+   * ausfallen oder sein Format ändern, sind die beiden Konstanten unten die
+   * einzige Stelle, die angefasst werden muss.
+   *
+   * Achtung: Das ist die einzige Stelle im Rechner, die eine Internet-
+   * verbindung braucht. Ohne Netz bleiben die Kacheln leer und es erscheint
+   * ein Hinweis — der Rest der App rechnet unverändert offline weiter.
+   */
+  var API_METALL = "https://api.gold-api.com/price/";      // + XAG | XAU | XPT
+  var API_WECHSELKURS = "https://api.frankfurter.app/latest?from=USD&to=EUR";
+  var UNZE_IN_GRAMM = 31.1034768;                          // Feinunze (Troy ounce)
+  var ABFRAGE_TIMEOUT = 10000;                             // ms, damit nichts ewig hängt
+
+  var METALLE = ["XAG", "XAU", "XPT"];                     // Silber, Gold, Platin
+  var kursStand = document.getElementById("kurs-stand");
+  var kursRetry = document.getElementById("kurs-retry");
+  var kursLaeuft = false;                                  // verhindert Doppelabfragen
+
+  function holeJson(url) {
+    // AbortController: ohne Zeitgrenze bliebe die Anzeige bei einem hängenden
+    // Netz für immer auf "wird abgefragt".
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, ABFRAGE_TIMEOUT);
+    return fetch(url, { signal: ctrl.signal, cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
+  // Preis aus der Antwort ziehen und prüfen. Lieber ein klarer Fehler als
+  // eine stillschweigend falsche Zahl — hier hängt echtes Geld dran.
+  function preisAus(daten) {
+    var p = daten && (daten.price != null ? daten.price : daten.rate);
+    p = typeof p === "string" ? parseFloat(p) : p;
+    if (typeof p !== "number" || !isFinite(p) || p <= 0) {
+      throw new Error("unerwartetes Format");
+    }
+    return p;
+  }
+
+  function zeigeKurse() {
+    if (kursLaeuft) return;
+    kursLaeuft = true;
+
+    kursRetry.hidden = true;
+    kursStand.classList.remove("fehler");
+    kursStand.textContent = "Kurse werden abgefragt …";
+    METALLE.forEach(function (m) {
+      document.getElementById("kurs-" + m).textContent = "…";
+    });
+
+    // Der Wechselkurs ist Pflicht — ohne ihn gibt es keinen Europreis.
+    // Die drei Metalle einzeln behandeln, damit ein Ausfall nicht die
+    // anderen beiden mitreißt.
+    holeJson(API_WECHSELKURS)
+      .then(function (fx) {
+        var eurProUsd = fx && fx.rates && fx.rates.EUR;
+        if (typeof eurProUsd !== "number" || !isFinite(eurProUsd) || eurProUsd <= 0) {
+          throw new Error("Wechselkurs unerwartetes Format");
+        }
+        return Promise.allSettled(METALLE.map(function (m) {
+          return holeJson(API_METALL + m).then(function (d) {
+            return { symbol: m, euroProGramm: preisAus(d) * eurProUsd / UNZE_IN_GRAMM };
+          });
+        }));
+      })
+      .then(function (ergebnisse) {
+        var erfolge = 0;
+        ergebnisse.forEach(function (e, i) {
+          var feld = document.getElementById("kurs-" + METALLE[i]);
+          if (e.status === "fulfilled") {
+            var v = e.value.euroProGramm;
+            // Silber liegt bei rund 1 €/g — dort sind zwei Stellen zu grob,
+            // um beim Abwiegen größerer Mengen sinnvoll zu bleiben.
+            feld.textContent = fmt(v, v < 10 ? 3 : 2);
+            erfolge++;
+          } else {
+            feld.textContent = "—";
+          }
+        });
+
+        if (erfolge === 0) throw new Error("kein Metallkurs erreichbar");
+
+        var jetzt = new Date();
+        var uhrzeit = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        kursStand.textContent = "Stand: " + uhrzeit + " Uhr" +
+          (erfolge < METALLE.length ? " · nicht alle Kurse erreichbar" : "");
+        kursStand.title = jetzt.toLocaleString("de-DE") +
+          " · Quelle: gold-api.com, Umrechnung über EZB-Referenzkurs";
+        kursRetry.hidden = false;
+      })
+      .catch(function (err) {
+        METALLE.forEach(function (m) {
+          document.getElementById("kurs-" + m).textContent = "—";
+        });
+        kursStand.classList.add("fehler");
+        // Klartext für die Werkstatt, die technische Ursache in den Tooltip.
+        kursStand.textContent = "Kurse nicht abrufbar — dafür braucht der Rechner eine Internetverbindung.";
+        kursStand.title = "Grund: " + err.message;
+        kursRetry.hidden = false;
+      })
+      .finally(function () { kursLaeuft = false; });
+  }
+
+  // Bei jedem Öffnen des Reiters neu abfragen (eigener Zuhörer, damit die
+  // allgemeine Tab-Umschaltung unverändert bleibt).
+  document.querySelector('[data-tab="wert"]').addEventListener("click", zeigeKurse);
+  kursRetry.addEventListener("click", zeigeKurse);
 })();
 </script>
 
