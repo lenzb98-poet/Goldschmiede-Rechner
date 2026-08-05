@@ -590,6 +590,16 @@
     word-break: break-word;
   }
 
+  /* Metallauswahl im Rechner: aktive Taste trägt die Farbe ihres Metalls,
+     damit der Bezug zu den Kacheln darüber sofort sichtbar ist. */
+  .metall-wahl button.active {
+    background: var(--bg);
+    border-color: var(--metall);
+    color: var(--metall);
+  }
+
+  select.wheel-select.klein { font-size: 1.3rem; }
+
   .kurs-retry {
     display: block;
     margin: 0.8rem auto 0;
@@ -792,10 +802,32 @@
       </details>
     </div>
 
-    <div class="card soon">
-      <h2>6 · Materialwert</h2>
-      <p>Gewicht plus Feingehalt plus Tagespreis ergibt den Wert. Praktisch beim Umschmelzen von Altgold.</p>
-      <div class="badge">wird bald erstellt</div>
+    <div class="card">
+      <div class="field">
+        <label>Metall</label>
+        <div class="segmented metall-wahl" id="wert-metall">
+          <button type="button" data-metall="XAG" class="metall-silber">Silber</button>
+          <button type="button" data-metall="XAU" class="metall-gold active">Gold</button>
+          <button type="button" data-metall="XPT" class="metall-platin">Platin</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="wert-gewicht">Gewicht</label>
+        <div class="input-with-unit">
+          <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-gewicht" placeholder="z. B. 12,5">
+          <span class="unit">g</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="wert-feingehalt">Feingehalt</label>
+        <select class="wheel-select klein" id="wert-feingehalt"></select>
+      </div>
+    </div>
+
+    <div class="card" id="wert-ergebnis">
+      <div class="placeholder">Gewicht eingeben, um den Wert zu sehen.</div>
     </div>
   </section>
 
@@ -1451,15 +1483,22 @@
     return p;
   }
 
+  // Welcher Preis gilt gerade für ein Metall? Handeingabe vor Abfrage.
+  // null, solange für dieses Metall überhaupt kein Kurs vorliegt.
+  function aktuellerPreis(m) {
+    return handKurse[m] != null ? handKurse[m] : liveKurse[m];
+  }
+
   // Kacheln füllen: Handeingabe schlägt Abfrage, Abfrage schlägt "—".
   function zeigeKachelwerte() {
     METALLE.forEach(function (m) {
-      var v = handKurse[m] != null ? handKurse[m] : liveKurse[m];
+      var v = aktuellerPreis(m);
       // Silber liegt bei rund 1 €/g — dort sind zwei Stellen zu grob,
       // um beim Abwiegen größerer Mengen sinnvoll zu bleiben.
       document.getElementById("kurs-" + m).textContent =
         v == null ? "—" : fmt(v, v < 10 ? 3 : 2);
     });
+    berechneMaterialwert();   // Rechner unten hängt an denselben Kursen
   }
 
   function zaehleHand() {
@@ -1597,6 +1636,113 @@
       }
     });
   });
+
+  /* --- Materialwert-Rechner ------------------------------------------
+   *
+   * Die Kurse oben sind Preise für FEINmetall, also für 1 g reines Metall.
+   * Eine Legierung enthält davon nur den Anteil, den ihr Feingehalt angibt:
+   *
+   *   Feingewicht [g] = Gewicht [g] · Feingehalt [‰] / 1000
+   *   Wert [€]        = Feingewicht [g] · Kurs [€ je g Feinmetall]
+   *
+   * Der Feingehalt kommt aus einer Auswahlliste mit den gängigen Stempeln
+   * je Metall — schneller und tippsicherer als eine Zahleneingabe, und die
+   * Karatangabe steht zum Nachschlagen daneben.
+   */
+  var FEINGEHALTE = {
+    XAG: [800, 835, 925, 999],
+    XAU: [333, 375, 585, 750, 900, 916, 999],
+    XPT: [585, 800, 900, 950, 999]
+  };
+  // Beschriftungen, wo eine geläufige Zweitbezeichnung existiert
+  var FEIN_ZUSATZ = {
+    XAG: { 925: "Sterling", 999: "Feinsilber" },
+    XAU: { 333: "8 kt", 375: "9 kt", 585: "14 kt", 750: "18 kt",
+           900: "21,6 kt", 916: "22 kt", 999: "24 kt · Feingold" },
+    XPT: { 999: "Feinplatin" }
+  };
+  var FEIN_START = { XAG: 925, XAU: 585, XPT: 950 };   // gängigster Stempel je Metall
+  var FEIN_NAME  = { XAG: "Feinsilber", XAU: "Feingold", XPT: "Feinplatin" };
+
+  var wertMetall = "XAU";
+  var wertMetallTasten = document.querySelectorAll("#wert-metall button");
+  var wertGewicht = document.getElementById("wert-gewicht");
+  var wertFein = document.getElementById("wert-feingehalt");
+  var wertErgebnis = document.getElementById("wert-ergebnis");
+
+  function fuelleFeingehalte(metall) {
+    wertFein.innerHTML = "";
+    FEINGEHALTE[metall].forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = String(w);
+      var zusatz = FEIN_ZUSATZ[metall] && FEIN_ZUSATZ[metall][w];
+      opt.textContent = w + (zusatz ? " · " + zusatz : "");
+      wertFein.appendChild(opt);
+    });
+    // Beim Metallwechsel immer auf den gängigen Stempel dieses Metalls
+    // stellen. Die vorherige Wahl mitzunehmen wäre findig, führt aber in
+    // die Irre: von Gold 585 auf Platin gewechselt stünde dort weiter 585,
+    // wo man 950 erwartet.
+    wertFein.value = String(FEIN_START[metall]);
+  }
+
+  function berechneMaterialwert() {
+    var preis = aktuellerPreis(wertMetall);
+    var roh = wertGewicht.value;
+
+    if (roh.trim() === "") {
+      wertErgebnis.innerHTML = '<div class="placeholder">Gewicht eingeben, um den Wert zu sehen.</div>';
+      return;
+    }
+
+    var gewicht = parseDe(roh);
+    if (isNaN(gewicht)) {
+      wertErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
+      return;
+    }
+    if (gewicht <= 0) {
+      wertErgebnis.innerHTML = '<div class="hint">Bitte ein Gewicht größer als 0 eingeben.</div>';
+      return;
+    }
+    if (preis == null) {
+      wertErgebnis.innerHTML = '<div class="hint">Für ' + NAME[wertMetall] +
+        ' liegt kein Kurs vor — oben abfragen oder von Hand eintragen.</div>';
+      return;
+    }
+
+    var promille = parseFloat(wertFein.value);
+    var feingewicht = gewicht * promille / 1000;
+    var wert = feingewicht * preis;
+
+    wertErgebnis.innerHTML =
+      '<div class="result-main">' +
+        '<div class="label">Materialwert</div>' +
+        '<div class="value">' + fmt(wert, 2) + '<span class="unit">€</span></div>' +
+        '<div class="extra-note">' + fmt(gewicht, 2) + ' g × ' + promille + ' ‰ × ' +
+          fmt(preis, preis < 10 ? 3 : 2) + ' € je g</div>' +
+      '</div>' +
+      '<div class="result-grid">' +
+        '<div class="result-item"><div class="label">' + FEIN_NAME[wertMetall] + '</div>' +
+          '<div class="value">' + fmt(feingewicht, 2) + ' g</div></div>' +
+        '<div class="result-item"><div class="label">Kurs je g ' + FEIN_NAME[wertMetall] + '</div>' +
+          '<div class="value">' + fmt(preis, preis < 10 ? 3 : 2) + ' €</div></div>' +
+      '</div>';
+  }
+
+  wertMetallTasten.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      wertMetallTasten.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      wertMetall = btn.getAttribute("data-metall");
+      fuelleFeingehalte(wertMetall);
+      berechneMaterialwert();
+    });
+  });
+
+  wertGewicht.addEventListener("input", berechneMaterialwert);
+  wertFein.addEventListener("change", berechneMaterialwert);
+
+  fuelleFeingehalte(wertMetall);
 
   // Bei jedem Öffnen des Reiters neu abfragen (eigener Zuhörer, damit die
   // allgemeine Tab-Umschaltung unverändert bleibt).
