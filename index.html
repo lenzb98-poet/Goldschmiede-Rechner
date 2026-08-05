@@ -463,6 +463,24 @@
   }
 
   [hidden] { display: none !important; }
+
+  /* --- Kennzeichnung experimenteller Funktionen --- */
+  .exp-tag {
+    display: inline-block;
+    border: 1px solid var(--danger);
+    border-radius: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    margin-left: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--danger);
+    vertical-align: 0.1rem;
+  }
+
+  .info-box.warn { border-left-color: var(--danger); }
+  .info-box.warn .info-box-title { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -521,11 +539,21 @@
         <div class="k-status" id="ring-k-status" hidden></div>
         <div class="field-hint" id="ring-k-hint">Aus: gerechnet wird mit der Mitte (k = 0,50).</div>
       </div>
+
+      <div class="field">
+        <label class="check-row">
+          <input type="checkbox" id="ring-bevel-on">
+          <span>Stoßflächen anschrägen<span class="exp-tag">experimentell</span></span>
+        </label>
+        <div class="field-hint">Berechnet, wie schräg die beiden Sägeflächen stehen müssen, damit sie beim Biegen flächig schließen statt nur an der Innenkante.</div>
+      </div>
     </div>
 
     <div class="card" id="ring-output">
       <div class="placeholder">Werte eingeben, um das Ergebnis zu sehen.</div>
     </div>
+
+    <div class="card" id="ring-bevel" hidden></div>
 
     <details class="card advanced">
       <summary>Erweitert: Korrekturfaktor</summary>
@@ -796,6 +824,101 @@
     calcRing();
   });
 
+  /* --- Anschrägung der Stoßflächen (experimentell) ---------------------
+   *
+   * Beobachtung aus der Werkstatt: Beim Biegen stoßen die quer gesägten
+   * Enden zuerst an der Innenkante zusammen, außen bleibt ein keilförmiger
+   * Spalt. Drückt man ihn zu, staucht die Innenkante — der Ring wird zu
+   * klein. Gibt man dafür Feilzugabe, wird er meist zu groß.
+   *
+   * Ursache: Am freien Ende kann sich kein volles Biegemoment aufbauen.
+   * Die letzten Millimeter jedes Endes bleiben gerader als der Rest. Die
+   * quer gesägte Fläche steht senkrecht auf diesem geraden Endstück — und
+   * damit NICHT radial zur Ringmitte.
+   *
+   * Herleitung:
+   *   R = (D + s) / 2            Radius der neutralen Faser (Mitte von s)
+   *   t                          Länge des Endstücks, das ungebogen bleibt
+   *
+   *   Über die Bogenlänge t dreht sich die Tangentenrichtung um
+   *        α = t / R             (Bogenmaß = Bogenlänge / Radius)
+   *   Genau um diesen Winkel steht die Sägefläche schief zur Radialen.
+   *   Also muss jede der beiden Flächen um α von der Senkrechten
+   *   angeschrägt werden, damit beide radial zur Ringmitte zeigen.
+   *
+   *   Nachgerechnet mit R = 9,345 mm (Größe 54), s = t = 1,5 mm ergibt das
+   *   eine Verkippung von 9,20°, und über den Querschnitt eine Überdeckung
+   *   von 0,28 mm an der Innenkante gegenüber 0,20 mm Spalt an der
+   *   Außenkante — also genau das beobachtete Bild.
+   *
+   *   Versatz der Innen- gegenüber der Außenkante, den das Anschrägen
+   *   erzeugt (Fläche kippt um α über die Höhe s):
+   *        v = s · tan(α)
+   *
+   * Der empirische Teil: t wird mit einer Materialstärke angesetzt (t = s).
+   * So weit etwa reicht am freien Ende der Bereich, in dem sich das
+   * Biegemoment nicht voll aufbaut — die Abklinglänge liegt in der
+   * Größenordnung der Bauteildicke. Wie lang sie wirklich ist, hängt von
+   * Biegeweise, Werkzeug und Rückfederung ab. Deshalb: experimentell.
+   *
+   *        α = s / R = 2s / (D + s)
+   */
+  var bevelCheckbox = document.getElementById("ring-bevel-on");
+  var bevelCard = document.getElementById("ring-bevel");
+
+  function zeigeAnschraegung() {
+    if (!bevelCheckbox.checked) {
+      bevelCard.hidden = true;
+      return;
+    }
+    bevelCard.hidden = false;
+
+    var w = ringWerte();
+    if (!w) {
+      bevelCard.innerHTML = '<div class="placeholder">Ringgröße und Materialstärke eingeben, um die Anschrägung zu sehen.</div>';
+      return;
+    }
+
+    var R = (w.D + w.s) / 2;                 // neutrale Faser, Mitte der Materialstärke
+    var alpha = w.s / R;                     // Bogenmaß
+    var alphaGrad = alpha * 180 / Math.PI;
+    var versatz = w.s * Math.tan(alpha);     // Innenkante gegenüber Außenkante
+
+    bevelCard.innerHTML =
+      '<div class="result-main">' +
+        '<div class="label">Anschrägung je Stoßfläche</div>' +
+        '<div class="value">' + fmt(alphaGrad, 1) + '<span class="unit">°</span></div>' +
+        '<div class="extra-note">von der Senkrechten · Innenkante zurücknehmen</div>' +
+      '</div>' +
+      '<div class="result-grid">' +
+        '<div class="result-item"><div class="label">beide Flächen zusammen</div><div class="value">' + fmt(2 * alphaGrad, 1) + ' °</div></div>' +
+        '<div class="result-item"><div class="label">Versatz innen zu außen</div><div class="value">' + fmt(versatz, 2) + ' mm</div></div>' +
+      '</div>' +
+      '<div class="info-box warn">' +
+        '<div class="info-box-title">⚠ Experimentell — am Probestück prüfen</div>' +
+        '<p>' +
+          'Am freien Ende lässt sich das Material nicht ganz mitbiegen; die letzten Millimeter ' +
+          'bleiben gerader. Die quer gesägte Fläche steht dann senkrecht auf diesem geraden Stück ' +
+          'statt radial zur Ringmitte — deshalb treffen sich die Innenkanten zuerst und außen ' +
+          'bleibt der Keil.' +
+        '</p>' +
+        '<p>' +
+          'Gefeilt wird an der <strong>Innenkante</strong>: sie wird um den angezeigten Versatz ' +
+          'zurückgenommen, die Außenkante bleibt stehen. Beide Flächen zeigen dann zur Ringmitte ' +
+          'und liegen beim Schließen ganz auf.' +
+        '</p>' +
+        '<p>' +
+          'Die Rechnung setzt die ungebogene Endzone mit einer Materialstärke an ' +
+          '(α = s / R). Wie lang sie tatsächlich ist, hängt von Biegeweise, Werkzeug und ' +
+          'Rückfederung ab — der Wert ist ein Anhaltspunkt, keine Garantie. ' +
+          'Wer sichergehen will: Ring biegen, Stoß zusammendrücken und mit dem Sägeblatt durch ' +
+          'die Fuge sägen — das macht beide Flächen von selbst deckungsgleich.' +
+        '</p>' +
+      '</div>';
+  }
+
+  bevelCheckbox.addEventListener("change", zeigeAnschraegung);
+
   modeButtons.forEach(function (btn) {
     btn.addEventListener("click", function () {
       modeButtons.forEach(function (b) { b.classList.remove("active"); });
@@ -876,6 +999,15 @@
   valueInput.addEventListener("input", calcRing);
   thicknessInput.addEventListener("input", calcRing);
   zugabeInput.addEventListener("input", calcRing);
+
+  // Die Anschrägung hängt an denselben Eingaben. Bewusst als eigene Zuhörer
+  // angemeldet — so bleibt calcRing() unverändert. Die Anmeldung steht hinter
+  // der des Moduswechsels, damit "mode" beim Auslesen schon aktualisiert ist.
+  valueInput.addEventListener("input", zeigeAnschraegung);
+  thicknessInput.addEventListener("input", zeigeAnschraegung);
+  modeButtons.forEach(function (btn) {
+    btn.addEventListener("click", zeigeAnschraegung);
+  });
 })();
 </script>
 
