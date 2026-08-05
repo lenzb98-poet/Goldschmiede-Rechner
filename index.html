@@ -402,6 +402,67 @@
     color: var(--gold);
     font-weight: 600;
   }
+
+  /* --- Checkbox "Korrekturfaktor verwenden" --- */
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    cursor: pointer;
+    font-size: 1.05rem;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+  }
+
+  .check-row input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 0 0 auto;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 2px solid var(--border);
+    border-radius: 0.4rem;
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .check-row input[type="checkbox"]:checked {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+
+  .check-row input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    top: 0.16rem;
+    width: 0.35rem;
+    height: 0.75rem;
+    border: solid var(--bg);
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+  }
+
+  .k-status {
+    font-size: 0.88rem;
+    color: var(--gold-dim);
+    font-weight: 600;
+  }
+
+  .k-reset {
+    margin-top: 0.9rem;
+    background: var(--bg);
+    color: var(--gold-dim);
+    border: 2px solid var(--border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -451,6 +512,15 @@
         </div>
         <div class="field-hint">Wird zur Zuschnittlänge dazugerechnet. Leer = 0 mm.</div>
       </div>
+
+      <div class="field">
+        <label class="check-row">
+          <input type="checkbox" id="ring-k-auto">
+          <span>Korrekturfaktor verwenden (dickes Material)</span>
+        </label>
+        <div class="k-status" id="ring-k-status" hidden></div>
+        <div class="field-hint" id="ring-k-hint">Aus: gerechnet wird mit der Mitte (k = 0,50).</div>
+      </div>
     </div>
 
     <div class="card" id="ring-output">
@@ -468,7 +538,9 @@
           Draht liegt sie genau in der Mitte der Materialstärke. Ist das Material im Verhältnis
           zum Ringdurchmesser sehr dick, wandert sie etwas Richtung Innenseite: der Ring braucht
           dann minimal weniger Material, als die einfache Rechnung annimmt. Im Zweifel bei
-          „Mitte" belassen.
+          „Mitte" belassen. Wie weit sie wandert, ermittelt der Rechner jetzt selbst nach
+          DIN 6935 aus dem Verhältnis von Innenradius zu Materialstärke — sobald oben
+          „Korrekturfaktor verwenden" angehakt ist.
         </p>
 
         <div class="info-box">
@@ -489,13 +561,21 @@
           </div>
         </div>
 
-        <div class="k-row">
-          <input type="range" id="ring-k" min="0.40" max="0.50" step="0.005" value="0.5">
-          <span class="k-value" id="ring-k-value">Mitte</span>
+        <div class="field-hint" id="k-off-note">
+          Der Korrekturfaktor ist ausgeschaltet — gerechnet wird mit der Mitte (k = 0,50).
+          Zum Nachjustieren oben „Korrekturfaktor verwenden" anhaken.
         </div>
-        <div class="k-scale">
-          <span>0,40 · dickes Material</span>
-          <span>0,50 · Mitte</span>
+
+        <div id="k-controls" hidden>
+          <div class="k-row">
+            <input type="range" id="ring-k" min="0.30" max="0.50" step="0.005" value="0.5">
+            <span class="k-value" id="ring-k-value">Mitte</span>
+          </div>
+          <div class="k-scale">
+            <span>0,30 · sehr dick</span>
+            <span>0,50 · Mitte</span>
+          </div>
+          <button type="button" class="k-reset" id="ring-k-reset" hidden>zurück auf automatisch</button>
         </div>
       </div>
     </details>
@@ -585,7 +665,8 @@
     if (!panel) return;
 
     e.preventDefault();
-    var felder = Array.prototype.slice.call(panel.querySelectorAll("input"))
+    // nur getippte Zahlenfelder: Checkbox und Schieberegler werden angetippt, nicht angesprungen
+    var felder = Array.prototype.slice.call(panel.querySelectorAll('input[type="text"]'))
       .filter(function (i) { return i.offsetParent !== null && !i.closest("details:not([open])"); }); // versteckte Felder (z. B. in geschlossenen <details>) überspringen
     var next = felder[felder.indexOf(el) + 1];
     if (next) {
@@ -605,14 +686,113 @@
   var zugabeInput = document.getElementById("ring-zugabe");
   var kInput = document.getElementById("ring-k");
   var kValueLabel = document.getElementById("ring-k-value");
+  var kAutoCheckbox = document.getElementById("ring-k-auto");
+  var kStatus = document.getElementById("ring-k-status");
+  var kHint = document.getElementById("ring-k-hint");
+  var kControls = document.getElementById("k-controls");
+  var kOffNote = document.getElementById("k-off-note");
+  var kResetBtn = document.getElementById("ring-k-reset");
   var output = document.getElementById("ring-output");
 
-  function kAnzeige(k) {
-    return Math.abs(k - 0.5) < 1e-9 ? "Mitte" : fmt(k, 3).replace(/0$/, "");
+  // Von Hand nachjustierter Wert; null = dem automatischen Wert folgen.
+  var kManuell = null;
+
+  /* --- Korrekturfaktor k nach DIN 6935 --------------------------------
+   * Beim Biegen behält nur die neutrale Faser ihre Länge. Wo sie liegt,
+   * hängt davon ab, wie eng im Verhältnis zur Materialstärke gebogen
+   * wird: je kleiner der Innenradius gegenüber s, desto weiter wandert
+   * sie aus der Mitte nach innen.
+   *
+   *   ri = D / 2                        Innenradius
+   *   v  = ri / s                       Verhältnis Innenradius : Stärke
+   *   k  = (0,65 + 0,5 · log10(v)) / 2
+   *
+   * Der Klammerausdruck ist der Korrekturwert der DIN 6935. Geteilt
+   * durch 2 ergibt er den Anteil der Materialstärke, in dem die neutrale
+   * Faser liegt — bei dünnem Material also genau die Mitte (0,5).
+   *
+   * Begrenzt auf 0,30 bis 0,50: nach oben, weil die Faser nie außerhalb
+   * der Mitte liegt (ab v ≈ 5 ist der Unterschied rechnerisch weg),
+   * nach unten, damit der Wert im handwerklich sinnvollen Bereich bleibt.
+   *
+   * Auf zwei Nachkommastellen gerundet, und zwar VOR der Längenrechnung:
+   * so passen angezeigter Faktor und angezeigte Zuschnittlänge
+   * zueinander. Wer "k = 0,42" liest und von Hand nachrechnet, bekommt
+   * genau die Länge, die daneben steht.
+   */
+  function kAutomatisch(D, s) {
+    var v = (D / 2) / s;
+    if (!isFinite(v) || v <= 0) return 0.5;
+    var k = (0.65 + 0.5 * Math.log10(v)) / 2;
+    k = Math.min(0.5, Math.max(0.3, k));
+    return Math.round(k * 100) / 100;
   }
 
+  // Liefert {D, s} — oder null, solange die Eingaben nicht rechenbar sind.
+  function ringWerte() {
+    var value = parseDe(valueInput.value);
+    var s = parseDe(thicknessInput.value);
+    if (isNaN(value) || isNaN(s) || value <= 0 || s <= 0) return null;
+    return { D: mode === "umfang" ? value / Math.PI : value, s: s };
+  }
+
+  // Welcher Faktor gilt gerade? quelle: "aus" | "auto" | "hand"
+  function bestimmeK(D, s) {
+    if (!kAutoCheckbox.checked) return { k: 0.5, quelle: "aus" };
+    var auto = kAutomatisch(D, s);
+    if (kManuell !== null) return { k: kManuell, auto: auto, quelle: "hand" };
+    return { k: auto, auto: auto, quelle: "auto" };
+  }
+
+  function kZahl(k) {
+    return fmt(k, 3).replace(/0$/, "");
+  }
+
+  function kAnzeige(k) {
+    return Math.abs(k - 0.5) < 1e-9 ? "Mitte" : kZahl(k);
+  }
+
+  function zeigeKStatus() {
+    var an = kAutoCheckbox.checked;
+    kControls.hidden = !an;
+    kOffNote.hidden = an;
+    kStatus.hidden = !an;
+    kResetBtn.hidden = !an || kManuell === null;
+
+    if (!an) {
+      kHint.textContent = "Aus: gerechnet wird mit der Mitte (k = 0,50).";
+      return;
+    }
+
+    var w = ringWerte();
+    if (!w) {
+      kStatus.hidden = true;
+      kHint.textContent = "Ringgröße und Materialstärke eingeben — dann wird k automatisch bestimmt.";
+      return;
+    }
+
+    var info = bestimmeK(w.D, w.s);
+    // Schieberegler folgt dem automatischen Wert, solange nichts von Hand gesetzt ist
+    if (kManuell === null) kInput.value = String(info.auto);
+    kValueLabel.textContent = kAnzeige(info.k);
+    kStatus.textContent = "k = " + kZahl(info.k) +
+      (info.quelle === "auto" ? " (automatisch)" : " (von Hand)");
+    kHint.textContent = "Verhältnis Innenradius : Materialstärke = " +
+      fmt((w.D / 2) / w.s, 2) + " · nach DIN 6935";
+  }
+
+  kAutoCheckbox.addEventListener("change", function () {
+    kManuell = null;          // beim Einschalten immer beim automatischen Wert beginnen
+    calcRing();
+  });
+
   kInput.addEventListener("input", function () {
-    kValueLabel.textContent = kAnzeige(parseFloat(kInput.value));
+    kManuell = parseFloat(kInput.value);
+    calcRing();
+  });
+
+  kResetBtn.addEventListener("click", function () {
+    kManuell = null;
     calcRing();
   });
 
@@ -630,6 +810,8 @@
   });
 
   function calcRing() {
+    zeigeKStatus();
+
     var rawValue = valueInput.value;
     var rawThickness = thicknessInput.value;
 
@@ -655,10 +837,6 @@
     var zugabe = parseDe(zugabeInput.value);
     if (zugabeInput.value.trim() === "" || isNaN(zugabe) || zugabe < 0) zugabe = 0;
 
-    // Lage der neutralen Faser (Korrekturfaktor k): Schieberegler liefert immer einen gültigen Wert
-    var k = parseFloat(kInput.value);
-    if (isNaN(k)) k = 0.5;
-
     var D, U, L;
     if (mode === "umfang") {
       U = value;
@@ -667,12 +845,19 @@
       D = value;
       U = Math.PI * D;
     }
+
+    // Lage der neutralen Faser: aus (0,5), automatisch nach DIN 6935 oder von Hand
+    var kInfo = bestimmeK(D, s);
+    var k = kInfo.k;
+
     L = Math.PI * (D + 2 * k * s) + zugabe;
     var outerD = D + 2 * s;
 
     var extras = [];
     if (zugabe > 0) extras.push("Zugabe " + fmt(zugabe, 2) + " mm");
-    if (Math.abs(k - 0.5) > 1e-9) extras.push("neutrale Faser bei " + kAnzeige(k));
+    if (kInfo.quelle !== "aus") {
+      extras.push("k = " + kZahl(k) + (kInfo.quelle === "auto" ? " (automatisch)" : " (von Hand)"));
+    }
     var extraNote = extras.length ? '<div class="extra-note">' + extras.join(" · ") + "</div>" : "";
 
     output.innerHTML =
