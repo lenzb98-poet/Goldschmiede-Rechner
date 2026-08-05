@@ -146,6 +146,48 @@
 
   .input-with-unit { position: relative; }
 
+  /* --- Rad (select) mit Umschalt-Knopf auf manuelle Eingabe --- */
+  .field-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .field-row .input-with-unit,
+  .field-row select.wheel-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  select.wheel-select {
+    font-size: 1.8rem;
+    padding: 0.9rem;
+    border-radius: 0.7rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  select.wheel-select:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  .mode-toggle {
+    flex: 0 0 auto;
+    background: var(--panel);
+    color: var(--gold-dim);
+    border: 2px solid var(--border);
+    border-radius: 0.7rem;
+    padding: 0 1.1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .mode-toggle:active { border-color: var(--gold); }
+
   input[type="text"] {
     width: 100%;
     font-size: 1.8rem;
@@ -508,17 +550,25 @@
 
       <div class="field">
         <label id="ring-value-label"># Innenumfang (Ringgröße)</label>
-        <div class="input-with-unit">
-          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-value" placeholder="z. B. 54">
-          <span class="unit">mm</span>
+        <div class="field-row" id="ring-value-row">
+          <select class="wheel-select" id="ring-value-wheel"></select>
+          <div class="input-with-unit" id="ring-value-manual" hidden>
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-value" placeholder="z. B. 54">
+            <span class="unit">mm</span>
+          </div>
+          <button type="button" class="mode-toggle" id="ring-value-toggle">manuell</button>
         </div>
       </div>
 
       <div class="field">
         <label>Materialstärke s</label>
-        <div class="input-with-unit">
-          <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-thickness" placeholder="z. B. 1,5">
-          <span class="unit">mm</span>
+        <div class="field-row">
+          <select class="wheel-select" id="ring-thickness-wheel"></select>
+          <div class="input-with-unit" id="ring-thickness-manual" hidden>
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ring-thickness" placeholder="z. B. 1,5">
+            <span class="unit">mm</span>
+          </div>
+          <button type="button" class="mode-toggle" id="ring-thickness-toggle">manuell</button>
         </div>
       </div>
 
@@ -723,6 +773,162 @@
   var kOffNote = document.getElementById("k-off-note");
   var kResetBtn = document.getElementById("ring-k-reset");
   var output = document.getElementById("ring-output");
+
+  /* --- Eingabe-Bedienung: Auswahlrad mit manuellem Umschalten -----------
+   * Innenumfang und Materialstärke lassen sich per Rad (natives <select>;
+   * auf dem iPhone rendert Safari das automatisch als Walzen-Picker) oder
+   * per Texteingabe bedienen. Beide Bedienarten schreiben in dasselbe
+   * Eingabefeld (#ring-value bzw. #ring-thickness) und lösen dessen ganz
+   * normales "input"-Ereignis aus. calcRing() liest weiterhin von genau
+   * dieser Stelle mit parseDe/parseFloat — die Formel merkt nicht, ob der
+   * Wert vom Rad oder von Hand kommt, und bleibt unverändert.
+   */
+  const SCHRITT_UMFANG = 1;      // mm je Rad-Schritt, Innenumfang
+  const SCHRITT_STAERKE = 0.1;   // mm je Rad-Schritt, Materialstärke
+
+  function dezimalstellen(schritt) {
+    var s = String(schritt);
+    var i = s.indexOf(".");
+    return i < 0 ? 0 : s.length - i - 1;
+  }
+
+  // Baut die Rad-Werteliste ohne Fließkomma-Rundungsfehler auf
+  // (0,1 + 0,1 + ... ergäbe sonst z. B. 0.30000000000000004).
+  function radWerte(min, max, schritt) {
+    var nachkomma = dezimalstellen(schritt);
+    var faktor = Math.pow(10, nachkomma);
+    var anzahl = Math.round((max - min) / schritt);
+    var werte = [];
+    for (var i = 0; i <= anzahl; i++) {
+      werte.push(Math.round((min + i * schritt) * faktor) / faktor);
+    }
+    return { werte: werte, nachkomma: nachkomma };
+  }
+
+  // Wie viele Nachkommastellen braucht ein Wert wirklich, damit beim
+  // Umschalten Rad <-> manuell nichts von der getippten Genauigkeit verlorengeht?
+  function dezimalstellenGetippt(wert) {
+    var s = String(wert);
+    var i = s.indexOf(".");
+    return i < 0 ? 0 : Math.min(s.length - i - 1, 6);
+  }
+
+  function wireRadManuell(cfg) {
+    // cfg: { input, select, manualBox, toggleBtn, min, max, schritt, einheit, start }
+    var info = radWerte(cfg.min, cfg.max, cfg.schritt);
+    info.werte.forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = String(w);
+      opt.textContent = fmt(w, info.nachkomma) + " " + cfg.einheit;
+      cfg.select.appendChild(opt);
+    });
+
+    var radBevorzugt = true;   // vom Nutzer zuletzt gewählte Bedienart
+    var eigeneOption = null;   // Zusatz-Eintrag fürs Rad bei Werten außerhalb des Rasters
+
+    function schreibeEingabefeld(wert) {
+      cfg.input.value = fmt(wert, Math.max(info.nachkomma, dezimalstellenGetippt(wert)));
+    }
+
+    // Rad auf einen bestimmten Wert bringen — auch wenn er nicht exakt auf
+    // dem Raster liegt oder außerhalb von min/max: Er bekommt dann eine
+    // eigene, an der richtigen Stelle einsortierte Zusatz-Option, statt
+    // beim Umschalten stillschweigend gerundet zu werden. So bleibt "der
+    // zuletzt eingetippte Wert beim Umschalten erhalten" auch in diesen Fällen.
+    function radAufWertBringen(wert) {
+      if (eigeneOption) { eigeneOption.remove(); eigeneOption = null; }
+      var passend = info.werte.some(function (w) { return Math.abs(w - wert) < 1e-9; });
+      if (passend) {
+        cfg.select.value = String(wert);
+        return;
+      }
+      eigeneOption = document.createElement("option");
+      eigeneOption.value = String(wert);
+      eigeneOption.textContent = fmt(wert, dezimalstellenGetippt(wert)) + " " + cfg.einheit;
+      var nachfolger = Array.prototype.slice.call(cfg.select.options)
+        .find(function (o) { return parseFloat(o.value) > wert; }) || null;
+      cfg.select.insertBefore(eigeneOption, nachfolger);
+      cfg.select.value = String(wert);
+    }
+
+    function zeigeRad() {
+      cfg.select.hidden = false;
+      cfg.manualBox.hidden = true;
+      cfg.toggleBtn.textContent = "manuell";
+    }
+
+    function zeigeManuell() {
+      cfg.select.hidden = true;
+      cfg.manualBox.hidden = false;
+      cfg.toggleBtn.textContent = "Rad";
+    }
+
+    cfg.select.addEventListener("change", function () {
+      schreibeEingabefeld(parseFloat(cfg.select.value));
+      cfg.input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    cfg.toggleBtn.addEventListener("click", function () {
+      radBevorzugt = cfg.select.hidden;   // gerade manuell sichtbar -> Nutzer will jetzt zum Rad
+      if (radBevorzugt) {
+        var aktuell = parseDe(cfg.input.value);
+        if (!isNaN(aktuell)) radAufWertBringen(aktuell);
+        zeigeRad();
+      } else {
+        zeigeManuell();
+        cfg.input.focus();
+      }
+    });
+
+    // Startwert setzen, Rad als Grundzustand zeigen (Vorgabe der Spezifikation)
+    schreibeEingabefeld(cfg.start);
+    radAufWertBringen(cfg.start);
+    zeigeRad();
+
+    return {
+      zeigeRad: zeigeRad,
+      zeigeManuell: zeigeManuell,
+      istRadBevorzugt: function () { return radBevorzugt; }
+    };
+  }
+
+  var umfangRad = wireRadManuell({
+    input: valueInput,
+    select: document.getElementById("ring-value-wheel"),
+    manualBox: document.getElementById("ring-value-manual"),
+    toggleBtn: document.getElementById("ring-value-toggle"),
+    min: 40, max: 75, schritt: SCHRITT_UMFANG,
+    einheit: "mm",
+    start: 55
+  });
+
+  wireRadManuell({
+    input: thicknessInput,
+    select: document.getElementById("ring-thickness-wheel"),
+    manualBox: document.getElementById("ring-thickness-manual"),
+    toggleBtn: document.getElementById("ring-thickness-toggle"),
+    min: 0.1, max: 6.0, schritt: SCHRITT_STAERKE,
+    einheit: "mm",
+    start: 1.0
+  });
+
+  var umfangToggleBtn = document.getElementById("ring-value-toggle");
+
+  // Das Rad hat nur für den Innenumfang einen definierten Bereich (40-75 mm,
+  // deutsche Ringgrößen). Im Innendurchmesser-Modus gibt es dafür kein
+  // sinnvolles Raster, deshalb dort schlicht die Texteingabe zeigen und den
+  // Umschalt-Knopf ausblenden. Die zuletzt gewählte Bedienart (Rad/manuell)
+  // bleibt für den Innenumfang-Modus gemerkt und wird beim Zurückschalten
+  // wiederhergestellt.
+  function wertBedienungAktualisieren() {
+    if (mode === "durchmesser") {
+      umfangToggleBtn.hidden = true;
+      umfangRad.zeigeManuell();
+    } else {
+      umfangToggleBtn.hidden = false;
+      if (umfangRad.istRadBevorzugt()) umfangRad.zeigeRad(); else umfangRad.zeigeManuell();
+    }
+  }
 
   // Von Hand nachjustierter Wert; null = dem automatischen Wert folgen.
   var kManuell = null;
@@ -930,6 +1136,7 @@
         ? "# Innenumfang (Ringgröße)"
         : "Innendurchmesser";
       valueInput.placeholder = mode === "umfang" ? "z. B. 54" : "z. B. 17,2";
+      wertBedienungAktualisieren();
       calcRing();
     });
   });
@@ -1010,6 +1217,12 @@
   modeButtons.forEach(function (btn) {
     btn.addEventListener("click", zeigeAnschraegung);
   });
+
+  // Die Räder haben schon beim Laden gültige Standardwerte (55 / 1,0 mm) —
+  // einmal das normale "input"-Ereignis auslösen, damit Ergebnis, Anschrägung
+  // und Korrekturfaktor-Anzeige sofort dazu passen, statt bis zur ersten
+  // Bedienung den leeren Platzhalter zu zeigen.
+  valueInput.dispatchEvent(new Event("input", { bubbles: true }));
 })();
 </script>
 
