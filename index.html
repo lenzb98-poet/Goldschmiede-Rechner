@@ -783,6 +783,18 @@
   }
 
   .verlauf-meldung.fehler { color: var(--danger); }
+
+  /* gleiche Optik wie die Diagnose der Tageskurse */
+  .verlauf-diagnose {
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    word-break: break-word;
+  }
 </style>
 </head>
 <body>
@@ -2098,19 +2110,34 @@
 
   var KLASSE = { XAG: "metall-silber", XAU: "metall-gold", XPT: "metall-platin" };
 
-  /* ACHTUNG — einzige Stelle, die bei einem Anbieterwechsel anzufassen ist.
-   * Die genaue Pfadform des Verlaufs-Endpunkts ist noch nicht am lebenden
-   * Dienst bestätigt (aus dieser Umgebung war er nicht erreichbar). Deshalb
-   * mehrere plausible Kandidaten der Reihe nach; der erste, der antwortet,
-   * gewinnt — genau wie bei den Tageskursen oben. */
-  function API_VERLAUF(symbol, vonISO, bisISO) {
-    var frage = "?start=" + vonISO + "&end=" + bisISO;
-    return [
-      "https://api.gold-api.com/history/" + symbol + frage,
-      "https://api.gold-api.com/price/" + symbol + "/history" + frage,
-      "https://api.gold-api.com/ohlc/" + symbol + frage
-    ];
-  }
+  /* --- Quellen für den Verlauf ---------------------------------------
+   *
+   * NICHT über api.gold-api.com: dort ist zwar ein Verlaufs-Endpunkt
+   * vorhanden, er antwortet aber mit HTTP 401 — Verlaufsdaten gibt es dort
+   * nur mit Konto. Ein Schlüssel wäre in dieser Seite für jeden lesbar, die
+   * Seite liegt öffentlich auf GitHub Pages. Deshalb ausschließlich Quellen
+   * ohne Anmeldung.
+   *
+   * Reihenfolge nach Güte:
+   *
+   *   1. LBMA — die amtlichen Londoner Fixings, also genau die Preise, auf
+   *      die sich der Edelmetallhandel beruft. Liefert je Tag [USD, GBP, EUR],
+   *      der Euro-Preis steht also direkt drin: keine Wechselkursabfrage,
+   *      eine Fehlerquelle weniger. Deckt alle drei Metalle ab.
+   *   2. Stooq — Tages-Schlusskurse als CSV in USD je Unze; dann wird der
+   *      Wechselkurs wie gehabt tagweise dazugeholt.
+   *
+   * Beide Dateien enthalten die VOLLE Historie. Sie werden deshalb je Metall
+   * nur einmal geholt und dann für alle vier Zeiträume schlicht zugeschnitten
+   * — das spart auf dem Telefon Datenvolumen und Wartezeit.
+   */
+  var LBMA_URL = {
+    XAU: "https://prices.lbma.org.uk/json/gold_pm.json",
+    XAG: "https://prices.lbma.org.uk/json/silver.json",
+    XPT: "https://prices.lbma.org.uk/json/platinum_pm.json"
+  };
+
+  var STOOQ_SYMBOL = { XAU: "xauusd", XAG: "xagusd", XPT: "xptusd" };
 
   function API_FX_REIHE(vonISO, bisISO) {
     return [
@@ -2119,8 +2146,20 @@
     ];
   }
 
+  // Wie holeJson, nur für CSV.
+  function holeText(url) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, ABFRAGE_TIMEOUT);
+    return fetch(url, { signal: ctrl.signal, cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("Server antwortet mit HTTP " + r.status);
+        return r.text();
+      })
+      .finally(function () { clearTimeout(timer); });
+  }
+
   function zahlAus(x) {
-    if (Array.isArray(x)) x = x[0];          // Form [USD, GBP, EUR]: erste Spalte
+    if (Array.isArray(x)) x = x[0];
     if (typeof x === "string") x = parseFloat(x);
     return (typeof x === "number" && isFinite(x) && x > 0) ? x : NaN;
   }
@@ -2143,33 +2182,81 @@
 
   function nachDatum(a, b) { return a.datum < b.datum ? -1 : (a.datum > b.datum ? 1 : 0); }
 
-  /* Aus der Antwort eine Liste [{datum, wert}] machen. Weil die Feldnamen des
-   * Verlaufs-Endpunkts noch nicht feststehen, werden die gängigen
-   * Schreibweisen abgeklopft, statt sich auf eine einzige festzulegen. Kommt
-   * nichts Brauchbares heraus, ist die Liste leer — der Aufrufer meldet das
-   * als "keine Daten", statt eine erfundene Zahl zu zeichnen. */
-  function reiheAus(daten) {
-    var liste = Array.isArray(daten) ? daten
-      : (daten && (daten.prices || daten.data || daten.history || daten.results || daten.rates));
+  /* LBMA: [{ d: "2024-01-02", v: [USD, GBP, EUR] }, ...]
+   *
+   * Die Spaltenfolge wird nicht blind geglaubt, sondern geprüft: Für ein in
+   * USD notiertes Metall ist der USD-Betrag immer die größte und der
+   * GBP-Betrag die kleinste der drei Zahlen (EUR/USD lag nie über 1, GBP/USD
+   * nie unter EUR/USD). Passt das Muster nicht, wird auf USD zurückgefallen
+   * und der Wechselkurs wie bei Stooq dazugeholt — lieber ein Umweg als eine
+   * stillschweigend falsche Währung. */
+  function lbmaReihe(daten) {
+    if (!Array.isArray(daten)) return { punkte: [], waehrung: null };
 
-    // Objektform { "2024-01-02": 2063.35, ... }
-    if (liste && !Array.isArray(liste) && typeof liste === "object") {
-      return Object.keys(liste).sort().map(function (d) {
-        return { datum: alsDatum(d), wert: zahlAus(liste[d]) };
-      }).filter(gueltigerPunkt);
+    var punkte = [], eurTauglich = true;
+    daten.forEach(function (e) {
+      var d = alsDatum(e && e.d);
+      var v = e && e.v;
+      if (!d || !Array.isArray(v)) return;
+      var usd = zahlAus(v[0]);
+      var gbp = zahlAus(v[1]);
+      var eur = zahlAus(v[2]);
+      if (isNaN(usd)) return;
+      if (isNaN(eur) || isNaN(gbp) || !(usd >= eur && eur >= gbp)) eurTauglich = false;
+      punkte.push({ datum: d, usd: usd, eur: eur });
+    });
+
+    punkte.sort(nachDatum);
+    if (eurTauglich && punkte.length) {
+      return {
+        punkte: punkte.map(function (p) { return { datum: p.datum, wert: p.eur }; }),
+        waehrung: "EUR"
+      };
     }
-
-    if (!Array.isArray(liste)) return [];
-
-    return liste.map(function (e) {
-      if (e == null) return null;
-      var d = e.date != null ? e.date : e.datum != null ? e.datum : e.d != null ? e.d
-            : e.time != null ? e.time : e.timestamp != null ? e.timestamp : e.t;
-      var w = e.price != null ? e.price : e.close != null ? e.close : e.c != null ? e.c
-            : e.value != null ? e.value : e.rate != null ? e.rate : e.v;
-      return { datum: alsDatum(d), wert: zahlAus(w) };
-    }).filter(gueltigerPunkt).sort(nachDatum);
+    return {
+      punkte: punkte.map(function (p) { return { datum: p.datum, wert: p.usd }; }),
+      waehrung: "USD"
+    };
   }
+
+  /* Stooq: CSV mit Kopfzeile "Date,Open,High,Low,Close,Volume", USD je Unze.
+   * Die Spalten werden über die Kopfzeile gesucht, nicht über feste Nummern —
+   * so hält das auch, wenn der Anbieter eine Spalte ergänzt. */
+  function stooqReihe(text) {
+    var zeilen = String(text).trim().split(/\r?\n/);
+    if (zeilen.length < 2) return { punkte: [], waehrung: "USD" };
+
+    var kopf = zeilen[0].toLowerCase().split(",").map(function (s) { return s.trim(); });
+    var iDatum = kopf.indexOf("date");
+    var iSchluss = kopf.indexOf("close");
+    if (iDatum < 0 || iSchluss < 0) return { punkte: [], waehrung: "USD" };
+
+    var punkte = [];
+    for (var i = 1; i < zeilen.length; i++) {
+      var f = zeilen[i].split(",");
+      var d = alsDatum(f[iDatum]);
+      var w = zahlAus(f[iSchluss]);
+      if (d && !isNaN(w)) punkte.push({ datum: d, wert: w });
+    }
+    return { punkte: punkte.sort(nachDatum), waehrung: "USD" };
+  }
+
+  var VERLAUF_QUELLEN = [
+    {
+      name: "LBMA",
+      url: function (m) { return LBMA_URL[m] || null; },
+      hole: holeJson,
+      lies: lbmaReihe
+    },
+    {
+      name: "Stooq",
+      url: function (m) {
+        return STOOQ_SYMBOL[m] ? "https://stooq.com/q/d/l/?s=" + STOOQ_SYMBOL[m] + "&i=d" : null;
+      },
+      hole: holeText,
+      lies: stooqReihe
+    }
+  ];
 
   function fxReiheAus(daten) {
     var r = daten && daten.rates;
@@ -2179,12 +2266,25 @@
     }).filter(gueltigerPunkt);
   }
 
-  /* Beide Reihen haben Lücken (Wochenenden, Feiertage) und zwar NICHT
-   * dieselben. Deshalb gilt je Metalltag der zuletzt bekannte Wechselkurs
-   * (forward fill). Liegt ein Metalltag noch vor dem ersten Kursdatum, wird
-   * der erste genommen — sonst fielen am linken Rand willkürlich Punkte weg. */
-  function verbinde(metallReihe, fxReihe) {
-    if (!metallReihe.length || !fxReihe.length) return [];
+  /* Metallreihe (je Unze) in EUR je Gramm überführen.
+   *
+   * Liegt die Reihe schon in Euro vor (LBMA), ist nur noch durch das
+   * Unzengewicht zu teilen. Sonst kommt der Wechselkurs dazu — und zwar
+   * TAGWEISE: beide Reihen haben Lücken (Wochenenden, Feiertage) und zwar
+   * nicht dieselben, deshalb gilt je Metalltag der zuletzt bekannte
+   * Wechselkurs (forward fill). Liegt ein Metalltag noch vor dem ersten
+   * Kursdatum, wird der erste genommen — sonst fielen am linken Rand
+   * willkürlich Punkte weg. */
+  function inEuroJeGramm(metallReihe, waehrung, fxReihe) {
+    if (!metallReihe.length) return [];
+
+    if (waehrung === "EUR") {
+      return metallReihe.map(function (p) {
+        return { datum: p.datum, wert: p.wert / UNZE_IN_GRAMM };
+      });
+    }
+
+    if (!fxReihe || !fxReihe.length) return [];
     var out = [], i = 0, letzterFx = fxReihe[0].wert;
     metallReihe.forEach(function (p) {
       while (i < fxReihe.length && fxReihe[i].datum <= p.datum) {
@@ -2194,6 +2294,12 @@
       out.push({ datum: p.datum, wert: p.wert * letzterFx / UNZE_IN_GRAMM });
     });
     return out;
+  }
+
+  // Auf den gewünschten Zeitraum zuschneiden. Die Quelldateien enthalten die
+  // volle Historie, geholt wird deshalb je Metall nur einmal.
+  function schneide(reihe, vonISO) {
+    return reihe.filter(function (p) { return p.datum >= vonISO; });
   }
 
   // --- Zeichnen: reines Inline-SVG, keine fremde Bibliothek ---
@@ -2240,7 +2346,9 @@
 
   var offenesMetall = null;    // null = Verlauf zugeklappt
   var offenerBereich = "woche";
-  var verlaufCache = {};       // "XAU|woche" -> fertige Punkte
+  var verlaufCache = {};       // "XAU|woche" -> fertige Punkte in EUR je Gramm
+  var rohCache = {};           // "XAU" -> volle Rohreihe samt Währung und Quelle
+  var fxCache = null;          // Wechselkursreihe über fünf Jahre
   var verlaufLauf = 0;         // Zähler, damit eine überholte Antwort nicht gewinnt
 
   // Meldungstexte über textContent setzen: Fehlermeldungen können Servertext
@@ -2256,7 +2364,21 @@
   }
 
   function verlaufFussText() {
-    var t = "Tagesschlusskurse, je Tag mit dem EZB-Referenzkurs desselben Tages umgerechnet.";
+    // Quelle und Währung kommen aus dem Rohspeicher des gerade offenen
+    // Metalls, nicht aus einer nebenherlaufenden Variablen: sonst stünde bei
+    // einem Treffer im Zwischenspeicher noch die Angabe des zuvor
+    // angesehenen Metalls da.
+    var roh = offenesMetall ? rohCache[offenesMetall] : null;
+    var quelle = roh && roh.quelle;
+    // Der Zusatz zur Umrechnung darf nur dastehen, wenn wirklich umgerechnet
+    // wurde — sonst behauptet die Fußzeile etwas Falsches, sobald eine Quelle
+    // wider Erwarten in USD statt in Euro geliefert hat.
+    var woher = quelle === "LBMA" ? "Amtliche Londoner Fixings (LBMA)"
+              : quelle ? "Tagesschlusskurse (" + quelle + ")"
+              : "Tagesschlusskurse";
+    var t = woher + (roh && roh.waehrung === "EUR"
+      ? ", Euro-Notierung je Handelstag."
+      : ", je Tag mit dem EZB-Referenzkurs desselben Tages umgerechnet.");
     if (offenesMetall && handKurse[offenesMetall] != null) {
       t += " Für " + NAME[offenesMetall] + " ist oben ein Kurs von Hand eingetragen — " +
            "der Verlauf zeigt weiterhin die Marktdaten.";
@@ -2295,6 +2417,62 @@
     verlaufInhalt.querySelector(".verlauf-fuss").textContent = verlaufFussText();
   }
 
+  /* Rohreihe je Metall besorgen: Quellen der Reihe nach durchgehen, die erste
+   * brauchbare gewinnt. Je Quelle wird festgehalten, was passiert ist — bei
+   * einem Fehlschlag steht das unter dem Diagramm, damit nicht geraten werden
+   * muss, woran es lag. Das Ergebnis wird je Metall zwischengespeichert; die
+   * Quelldateien enthalten die volle Historie, ein Abruf reicht also für alle
+   * vier Zeiträume. */
+  function holeRohreihe(m) {
+    if (rohCache[m]) return Promise.resolve(rohCache[m]);
+
+    var notizen = [];
+    var kette = Promise.reject(new Error("keine Quelle hinterlegt"));
+
+    VERLAUF_QUELLEN.forEach(function (q) {
+      kette = kette.catch(function () {
+        var url = q.url(m);
+        if (!url) {
+          notizen.push(q.name + ": für " + NAME[m] + " nicht hinterlegt");
+          throw new Error("keine Adresse");
+        }
+        return q.hole(url).then(function (rohdaten) {
+          var erg = q.lies(rohdaten);
+          if (!erg.punkte || erg.punkte.length < 2) {
+            notizen.push(q.name + ": Antwort ohne brauchbare Reihe");
+            throw new Error("Antwort hat ein unerwartetes Format");
+          }
+          notizen.push(q.name + ": ok (" + erg.punkte.length + " Tage, " + erg.waehrung + ")");
+          erg.quelle = q.name;
+          erg.notizen = notizen;
+          return erg;
+        }, function (err) {
+          notizen.push(q.name + ": " + fehlerKlartext(err));
+          throw err;
+        });
+      });
+    });
+
+    return kette.then(function (erg) {
+      rohCache[m] = erg;
+      return erg;
+    }, function (err) {
+      err.notizen = notizen;
+      throw err;
+    });
+  }
+
+  // Wechselkursreihe nur holen, wenn die Metallreihe nicht schon in Euro ist.
+  // Einmal über den längsten Zeitraum, danach wird zugeschnitten.
+  function holeFxReihe() {
+    if (fxCache) return Promise.resolve(fxCache);
+    var bis = new Date();
+    var von = new Date(bis.getTime() - BEREICHE.fuenf.tage * 864e5);
+    return versucheReihe(API_FX_REIHE(von.toISOString().slice(0, 10), bis.toISOString().slice(0, 10)))
+      .then(fxReiheAus)
+      .then(function (reihe) { fxCache = reihe; return reihe; });
+  }
+
   function zeigeVerlauf() {
     if (!offenesMetall) return;
     var m = offenesMetall, b = offenerBereich;
@@ -2315,21 +2493,23 @@
 
     verlaufMeldung("Verlauf wird abgefragt …", false);
 
-    var bis = new Date();
-    var von = new Date(bis.getTime() - BEREICHE[b].tage * 864e5);
-    var vonISO = von.toISOString().slice(0, 10);
-    var bisISO = bis.toISOString().slice(0, 10);
+    var vonISO = new Date(Date.now() - BEREICHE[b].tage * 864e5).toISOString().slice(0, 10);
     var lauf = ++verlaufLauf;
 
-    Promise.all([
-      versucheReihe(API_VERLAUF(m, vonISO, bisISO)).then(reiheAus),
-      versucheReihe(API_FX_REIHE(vonISO, bisISO)).then(fxReiheAus)
-    ]).then(function (res) {
+    holeRohreihe(m).then(function (erg) {
+      // Wechselkurs nur, wenn die Quelle in USD liefert.
+      if (erg.waehrung === "EUR") return { erg: erg, fx: null };
+      return holeFxReihe().then(function (fx) { return { erg: erg, fx: fx }; });
+    }).then(function (paket) {
       // Zwischenzeitlich weitergetippt? Dann ist diese Antwort veraltet.
       if (lauf !== verlaufLauf) return;
-      var punkte = verbinde(res[0], res[1]);
+
+      var reihe = schneide(paket.erg.punkte, vonISO);
+      var punkte = inEuroJeGramm(reihe, paket.erg.waehrung, paket.fx);
+
       if (punkte.length < 2) {
         verlaufMeldung("Für diesen Zeitraum liegen keine Daten vor.", false);
+        zeigeVerlaufDiagnose(paket.erg.notizen);
         return;
       }
       verlaufCache[schluessel] = punkte;
@@ -2337,7 +2517,18 @@
     }).catch(function (err) {
       if (lauf !== verlaufLauf) return;
       verlaufMeldung("Verlauf nicht abrufbar — " + fehlerKlartext(err) + ".", true);
+      zeigeVerlaufDiagnose(err.notizen);
     });
+  }
+
+  // Wie bei den Tageskursen: im Fehlerfall Klartext je Quelle, damit
+  // erkennbar ist, WO es klemmt, statt nur DASS es klemmt.
+  function zeigeVerlaufDiagnose(notizen) {
+    if (!notizen || !notizen.length) return;
+    var div = document.createElement("div");
+    div.className = "verlauf-diagnose";
+    div.textContent = "Diagnose · Seite läuft über \"" + location.protocol + "\" · " + notizen.join(" · ");
+    verlaufInhalt.appendChild(div);
   }
 
   kursKacheln.forEach(function (kachel) {
