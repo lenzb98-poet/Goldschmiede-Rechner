@@ -1660,33 +1660,41 @@
 
     // Kopfzahl ist immer der berechnete (nicht der eingegebene) Wert — wer
     // den Durchmesser eintippt, will vor allem den Umfang sehen, und
-    // umgekehrt. Die Eingabe selbst steht zur Bestätigung im Raster darunter.
-    var kopfLabel, kopfWert, gridLabel, gridWert;
-    if (umfangMode === "umfang") {
-      kopfLabel = "Innendurchmesser"; kopfWert = D;
-      gridLabel = "# Innenumfang";    gridWert = U;
-    } else {
-      kopfLabel = "# Innenumfang";     kopfWert = U;
-      gridLabel = "Innendurchmesser"; gridWert = D;
-    }
+    // umgekehrt.
+    var kopfLabel = (umfangMode === "umfang") ? "Innendurchmesser" : "# Innenumfang";
+    var kopfWert = (umfangMode === "umfang") ? D : U;
 
-    umfangOutput.innerHTML =
+    var html =
       '<div class="result-main">' +
         '<div class="label">' + kopfLabel + '</div>' +
         '<div class="value">' + fmt(kopfWert, 2) + '<span class="unit">mm</span></div>' +
-      '</div>' +
-      '<div class="result-grid">' +
-        '<div class="result-item"><div class="label">' + gridLabel + '</div><div class="value">' + fmt(gridWert, 2) + ' mm</div></div>' +
-        '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + (exakteGroesse ? "" : "≈ ") + nearestSize + '</div></div>' +
       '</div>';
 
+    // Im Umfang-Modus wäre das Raster nur eine Wiederholung der eigenen
+    // Eingabe (# Innenumfang) und die Nächste Größe steht ohnehin schon in
+    // der Tabelle darunter markiert — deshalb dort ausgeblendet. Im
+    // Durchmesser-Modus bleibt es sinnvoll: der eingegebene Durchmesser
+    // liegt oft nicht exakt auf dem Raster, "Nächste Größe" ist dann eine
+    // echte Zusatzinfo.
+    if (umfangMode !== "umfang") {
+      html +=
+        '<div class="result-grid">' +
+          '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
+          '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + (exakteGroesse ? "" : "≈ ") + nearestSize + '</div></div>' +
+        '</div>';
+    }
+
+    umfangOutput.innerHTML = html;
+
     // Passende Zeile in der Tabelle hervorheben, damit man sofort sieht,
-    // wo der eigene Wert zwischen den Standardgrößen liegt. Bewusst ohne
-    // automatisches Scrollen — das würde bei jedem Tastendruck die Seite
-    // verspringen lassen, während gerade getippt wird.
+    // wo der eigene Wert zwischen den Standardgrößen liegt — aber nur bei
+    // einer exakten Normgröße. Bei einem Zwischenwert (z. B. von Hand
+    // eingegebener Durchmesser außerhalb des Rasters) gibt es keine
+    // treffende Zeile, deshalb erlischt die Markierung dann ganz.
     var alleZeilen = tableBody.querySelectorAll(".size-row");
     alleZeilen.forEach(function (row) {
-      row.classList.toggle("size-row-active", parseInt(row.getAttribute("data-size"), 10) === nearestSize);
+      var passt = exakteGroesse && parseInt(row.getAttribute("data-size"), 10) === nearestSize;
+      row.classList.toggle("size-row-active", passt);
     });
   }
 
