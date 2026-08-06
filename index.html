@@ -680,6 +680,109 @@
     font-weight: 600;
     cursor: pointer;
   }
+
+  /* --- Kursverlauf ---------------------------------------------------
+     Die Kacheln sind jetzt Knöpfe. Damit sie unverändert aussehen, müssen
+     die Browser-Vorgaben für <button> zurückgenommen werden. */
+  button.kurs-tile {
+    font: inherit;
+    width: 100%;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  button.kurs-tile[aria-pressed="true"] {
+    border-color: var(--metall);
+    box-shadow: inset 0 0 0 1px var(--metall);
+  }
+
+  /* kleiner Wink, dass die Kacheln antippbar sind */
+  .kurs-tipp {
+    margin-top: 0.55rem;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .verlauf-box {
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .verlauf-kopf {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .verlauf-titel {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--metall);
+  }
+
+  .verlauf-aend { font-size: 0.95rem; font-weight: 600; }
+  .verlauf-aend.hoch { color: #7ab87f; }
+  .verlauf-aend.runter { color: #d9705e; }
+
+  /* Bereichswahl: dieselbe Optik wie die übrigen Segmentleisten, nur
+     kompakter — vier Knöpfe müssen auf ein Telefon passen. */
+  .verlauf-bereiche button {
+    padding: 0.6rem 0.2rem;
+    font-size: 0.9rem;
+  }
+
+  .verlauf-chart {
+    margin-top: 0.9rem;
+    color: var(--metall);   /* die Linie erbt das per currentColor */
+  }
+
+  /* Feste Höhe + preserveAspectRatio="none": das Diagramm füllt die Breite
+     aus, ohne auf dem iPad übermäßig hoch zu werden. Die Linie behält ihre
+     Strichstärke über vector-effect. */
+  .verlauf-chart svg { display: block; width: 100%; height: 150px; }
+
+  .verlauf-achse {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  .verlauf-spanne {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .verlauf-spanne strong { color: var(--text); font-weight: 600; }
+
+  .verlauf-fuss {
+    margin-top: 0.6rem;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .verlauf-meldung {
+    text-align: center;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    padding: 1.4rem 0.5rem;
+  }
+
+  .verlauf-meldung.fehler { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -867,25 +970,40 @@
   <section class="panel" id="panel-wert">
     <div class="card">
       <div class="kurs-grid">
-        <div class="kurs-tile metall-silber">
+        <button type="button" class="kurs-tile metall-silber" data-metall="XAG" aria-pressed="false">
           <div class="kurs-name">Silber</div>
           <div class="kurs-preis" id="kurs-XAG">—</div>
           <div class="kurs-einheit">€ / g</div>
-        </div>
-        <div class="kurs-tile metall-gold">
+        </button>
+        <button type="button" class="kurs-tile metall-gold" data-metall="XAU" aria-pressed="false">
           <div class="kurs-name">Gold</div>
           <div class="kurs-preis" id="kurs-XAU">—</div>
           <div class="kurs-einheit">€ / g</div>
-        </div>
-        <div class="kurs-tile metall-platin">
+        </button>
+        <button type="button" class="kurs-tile metall-platin" data-metall="XPT" aria-pressed="false">
           <div class="kurs-name">Platin</div>
           <div class="kurs-preis" id="kurs-XPT">—</div>
           <div class="kurs-einheit">€ / g</div>
-        </div>
+        </button>
       </div>
+      <div class="kurs-tipp">Kachel antippen für den Kursverlauf</div>
       <div class="kurs-stand" id="kurs-stand">Kurse werden abgefragt …</div>
       <div class="kurs-diagnose" id="kurs-diagnose" hidden></div>
       <button type="button" class="kurs-retry" id="kurs-retry" hidden>erneut abfragen</button>
+
+      <div class="verlauf-box" id="verlauf-box" hidden>
+        <div class="verlauf-kopf">
+          <span class="verlauf-titel" id="verlauf-titel"></span>
+          <span class="verlauf-aend" id="verlauf-aend"></span>
+        </div>
+        <div class="segmented verlauf-bereiche" id="verlauf-bereiche">
+          <button type="button" data-bereich="woche" class="active">1 Woche</button>
+          <button type="button" data-bereich="monat">1 Monat</button>
+          <button type="button" data-bereich="jahr">1 Jahr</button>
+          <button type="button" data-bereich="fuenf">5 Jahre</button>
+        </div>
+        <div id="verlauf-inhalt"></div>
+      </div>
 
       <details class="advanced" id="kurs-hand-box">
         <summary>Kurse von Hand eintragen</summary>
@@ -1942,6 +2060,304 @@
       } else {
         setzeStand(zaehleHand() ? "" : "Kurse nicht abrufbar", zaehleHand() === 0, "");
       }
+      // Steht der Verlauf gerade für dieses Metall offen, neu zeichnen: der
+      // Hinweis "von Hand eingetragen" in der Fußzeile muss dazu passen.
+      // Trifft den Zwischenspeicher, löst also keine neue Abfrage aus.
+      if (offenesMetall === m) zeigeVerlauf();
+    });
+  });
+
+  /* --- Kursverlauf ----------------------------------------------------
+   *
+   * Ein Tipp auf eine Kachel öffnet darunter den Verlauf dieses Metalls.
+   * Gezeichnet wird in EUR je Gramm, also in derselben Einheit wie die
+   * Kachel. Dafür braucht es zwei Reihen:
+   *
+   *   1. Metallpreis je Handelstag in USD je Unze
+   *   2. Wechselkurs USD -> EUR je Handelstag (EZB über Frankfurter)
+   *
+   * und die Umrechnung TAGWEISE:
+   *
+   *   EUR/g[t] = USD/oz[t] · EUR/USD[t] / 31,1034768
+   *
+   * Bewusst nicht mit dem heutigen Wechselkurs über die ganze Reihe: EUR/USD
+   * lief in fünf Jahren von rund 1,20 auf 1,05. Ein fester Kurs würde
+   * Bewegungen zeigen, die es in Euro nie gegeben hat — bei einer Zahl, an
+   * der Kaufentscheidungen hängen, wäre das kein zulässiger Kompromiss.
+   *
+   * Der Verlauf ist eine Zugabe: schlägt er fehl, bleiben Tageskurse,
+   * Handeingabe und Rechner unberührt. Abgefragt wird erst beim Antippen,
+   * damit der Reiter weiterhin sofort steht.
+   */
+  var BEREICHE = {
+    woche: { tage: 7,    text: "1 Woche" },
+    monat: { tage: 30,   text: "1 Monat" },
+    jahr:  { tage: 365,  text: "1 Jahr" },
+    fuenf: { tage: 1826, text: "5 Jahre" }
+  };
+
+  var KLASSE = { XAG: "metall-silber", XAU: "metall-gold", XPT: "metall-platin" };
+
+  /* ACHTUNG — einzige Stelle, die bei einem Anbieterwechsel anzufassen ist.
+   * Die genaue Pfadform des Verlaufs-Endpunkts ist noch nicht am lebenden
+   * Dienst bestätigt (aus dieser Umgebung war er nicht erreichbar). Deshalb
+   * mehrere plausible Kandidaten der Reihe nach; der erste, der antwortet,
+   * gewinnt — genau wie bei den Tageskursen oben. */
+  function API_VERLAUF(symbol, vonISO, bisISO) {
+    var frage = "?start=" + vonISO + "&end=" + bisISO;
+    return [
+      "https://api.gold-api.com/history/" + symbol + frage,
+      "https://api.gold-api.com/price/" + symbol + "/history" + frage,
+      "https://api.gold-api.com/ohlc/" + symbol + frage
+    ];
+  }
+
+  function API_FX_REIHE(vonISO, bisISO) {
+    return [
+      "https://api.frankfurter.dev/v1/" + vonISO + ".." + bisISO + "?base=USD&symbols=EUR",
+      "https://api.frankfurter.app/" + vonISO + ".." + bisISO + "?from=USD&to=EUR"
+    ];
+  }
+
+  function zahlAus(x) {
+    if (Array.isArray(x)) x = x[0];          // Form [USD, GBP, EUR]: erste Spalte
+    if (typeof x === "string") x = parseFloat(x);
+    return (typeof x === "number" && isFinite(x) && x > 0) ? x : NaN;
+  }
+
+  // Datum auf "JJJJ-MM-TT" bringen, egal ob ISO-Text oder Unix-Zeit.
+  function alsDatum(d) {
+    if (typeof d === "number") {
+      // Sekunden oder Millisekunden? Alles unter 10^11 ist Sekunden.
+      return new Date(d < 1e11 ? d * 1000 : d).toISOString().slice(0, 10);
+    }
+    if (typeof d === "string") {
+      if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+      var t = Date.parse(d);
+      if (!isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+    }
+    return null;
+  }
+
+  function gueltigerPunkt(p) { return !!p && !!p.datum && !isNaN(p.wert); }
+
+  function nachDatum(a, b) { return a.datum < b.datum ? -1 : (a.datum > b.datum ? 1 : 0); }
+
+  /* Aus der Antwort eine Liste [{datum, wert}] machen. Weil die Feldnamen des
+   * Verlaufs-Endpunkts noch nicht feststehen, werden die gängigen
+   * Schreibweisen abgeklopft, statt sich auf eine einzige festzulegen. Kommt
+   * nichts Brauchbares heraus, ist die Liste leer — der Aufrufer meldet das
+   * als "keine Daten", statt eine erfundene Zahl zu zeichnen. */
+  function reiheAus(daten) {
+    var liste = Array.isArray(daten) ? daten
+      : (daten && (daten.prices || daten.data || daten.history || daten.results || daten.rates));
+
+    // Objektform { "2024-01-02": 2063.35, ... }
+    if (liste && !Array.isArray(liste) && typeof liste === "object") {
+      return Object.keys(liste).sort().map(function (d) {
+        return { datum: alsDatum(d), wert: zahlAus(liste[d]) };
+      }).filter(gueltigerPunkt);
+    }
+
+    if (!Array.isArray(liste)) return [];
+
+    return liste.map(function (e) {
+      if (e == null) return null;
+      var d = e.date != null ? e.date : e.datum != null ? e.datum : e.d != null ? e.d
+            : e.time != null ? e.time : e.timestamp != null ? e.timestamp : e.t;
+      var w = e.price != null ? e.price : e.close != null ? e.close : e.c != null ? e.c
+            : e.value != null ? e.value : e.rate != null ? e.rate : e.v;
+      return { datum: alsDatum(d), wert: zahlAus(w) };
+    }).filter(gueltigerPunkt).sort(nachDatum);
+  }
+
+  function fxReiheAus(daten) {
+    var r = daten && daten.rates;
+    if (!r || typeof r !== "object") return [];
+    return Object.keys(r).sort().map(function (d) {
+      return { datum: d, wert: zahlAus(r[d] && r[d].EUR) };
+    }).filter(gueltigerPunkt);
+  }
+
+  /* Beide Reihen haben Lücken (Wochenenden, Feiertage) und zwar NICHT
+   * dieselben. Deshalb gilt je Metalltag der zuletzt bekannte Wechselkurs
+   * (forward fill). Liegt ein Metalltag noch vor dem ersten Kursdatum, wird
+   * der erste genommen — sonst fielen am linken Rand willkürlich Punkte weg. */
+  function verbinde(metallReihe, fxReihe) {
+    if (!metallReihe.length || !fxReihe.length) return [];
+    var out = [], i = 0, letzterFx = fxReihe[0].wert;
+    metallReihe.forEach(function (p) {
+      while (i < fxReihe.length && fxReihe[i].datum <= p.datum) {
+        letzterFx = fxReihe[i].wert;
+        i++;
+      }
+      out.push({ datum: p.datum, wert: p.wert * letzterFx / UNZE_IN_GRAMM });
+    });
+    return out;
+  }
+
+  // --- Zeichnen: reines Inline-SVG, keine fremde Bibliothek ---
+  var CHART_B = 320, CHART_H = 140, RAND_O = 8, RAND_U = 8;
+
+  function zeichneVerlauf(punkte) {
+    var werte = punkte.map(function (p) { return p.wert; });
+    var min = Math.min.apply(null, werte);
+    var max = Math.max.apply(null, werte);
+    var spanne = max - min;
+    // Waagerechte Reihe: Linie in die Mitte legen, statt durch null zu teilen.
+    if (spanne <= 0) { min -= 1; max += 1; spanne = max - min; }
+
+    var nutzH = CHART_H - RAND_O - RAND_U;
+    var xy = punkte.map(function (p, i) {
+      var x = punkte.length === 1 ? CHART_B / 2 : CHART_B * i / (punkte.length - 1);
+      var y = RAND_O + nutzH * (1 - (p.wert - min) / spanne);
+      return x.toFixed(2) + "," + y.toFixed(2);
+    });
+
+    var flaeche = "M0," + CHART_H + " L" + xy.join(" L") + " L" + CHART_B + "," + CHART_H + " Z";
+
+    return '<svg viewBox="0 0 ' + CHART_B + " " + CHART_H + '" preserveAspectRatio="none" ' +
+             'role="img" aria-label="Kursverlauf">' +
+             '<path d="' + flaeche + '" fill="currentColor" opacity="0.13"/>' +
+             '<polyline points="' + xy.join(" ") + '" fill="none" stroke="currentColor" ' +
+               'stroke-width="2" stroke-linejoin="round" stroke-linecap="round" ' +
+               'vector-effect="non-scaling-stroke"/>' +
+           '</svg>';
+  }
+
+  function datumDe(isoStr) {
+    var t = new Date(isoStr + "T00:00:00");
+    return isNaN(t.getTime()) ? isoStr
+      : t.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+
+  var verlaufBox = document.getElementById("verlauf-box");
+  var verlaufTitel = document.getElementById("verlauf-titel");
+  var verlaufAend = document.getElementById("verlauf-aend");
+  var verlaufInhalt = document.getElementById("verlauf-inhalt");
+  var verlaufBereiche = document.getElementById("verlauf-bereiche");
+  var kursKacheln = document.querySelectorAll(".kurs-tile[data-metall]");
+
+  var offenesMetall = null;    // null = Verlauf zugeklappt
+  var offenerBereich = "woche";
+  var verlaufCache = {};       // "XAU|woche" -> fertige Punkte
+  var verlaufLauf = 0;         // Zähler, damit eine überholte Antwort nicht gewinnt
+
+  // Meldungstexte über textContent setzen: Fehlermeldungen können Servertext
+  // enthalten, der nicht als HTML ausgelegt werden soll.
+  function verlaufMeldung(text, istFehler) {
+    verlaufInhalt.innerHTML = "";
+    var div = document.createElement("div");
+    div.className = "verlauf-meldung" + (istFehler ? " fehler" : "");
+    div.textContent = text;
+    verlaufInhalt.appendChild(div);
+    verlaufAend.textContent = "";
+    verlaufAend.className = "verlauf-aend";
+  }
+
+  function verlaufFussText() {
+    var t = "Tagesschlusskurse, je Tag mit dem EZB-Referenzkurs desselben Tages umgerechnet.";
+    if (offenesMetall && handKurse[offenesMetall] != null) {
+      t += " Für " + NAME[offenesMetall] + " ist oben ein Kurs von Hand eingetragen — " +
+           "der Verlauf zeigt weiterhin die Marktdaten.";
+    }
+    return t;
+  }
+
+  function maleVerlauf(punkte) {
+    var erster = punkte[0].wert;
+    var letzter = punkte[punkte.length - 1].wert;
+    var diff = letzter - erster;
+    var proz = erster > 0 ? diff / erster * 100 : 0;
+    // Silber liegt bei rund 1 €/g — dort sind zwei Stellen zu grob.
+    var stellen = letzter < 10 ? 3 : 2;
+    var vz = diff >= 0 ? "+" : "−";      // echtes Minuszeichen, nicht der Bindestrich
+
+    verlaufAend.className = "verlauf-aend " + (diff >= 0 ? "hoch" : "runter");
+    verlaufAend.textContent = vz + fmt(Math.abs(diff), stellen) + " € (" +
+                              vz + fmt(Math.abs(proz), 1) + " %)";
+
+    var werte = punkte.map(function (p) { return p.wert; });
+    var tief = Math.min.apply(null, werte);
+    var hoch = Math.max.apply(null, werte);
+
+    verlaufInhalt.innerHTML =
+      '<div class="verlauf-chart">' + zeichneVerlauf(punkte) + '</div>' +
+      '<div class="verlauf-achse">' +
+        '<span>' + datumDe(punkte[0].datum) + '</span>' +
+        '<span>' + datumDe(punkte[punkte.length - 1].datum) + '</span>' +
+      '</div>' +
+      '<div class="verlauf-spanne">' +
+        '<span>Tief <strong>' + fmt(tief, stellen) + ' €</strong></span>' +
+        '<span>Hoch <strong>' + fmt(hoch, stellen) + ' €</strong></span>' +
+      '</div>' +
+      '<div class="verlauf-fuss"></div>';
+    verlaufInhalt.querySelector(".verlauf-fuss").textContent = verlaufFussText();
+  }
+
+  function zeigeVerlauf() {
+    if (!offenesMetall) return;
+    var m = offenesMetall, b = offenerBereich;
+
+    verlaufBox.className = "verlauf-box " + KLASSE[m];
+    verlaufTitel.textContent = NAME[m] + " · " + BEREICHE[b].text;
+
+    var schluessel = m + "|" + b;
+    if (verlaufCache[schluessel]) { maleVerlauf(verlaufCache[schluessel]); return; }
+
+    // Gleiche Lage wie bei den Tageskursen: aus einem nicht-http-Ursprung
+    // blockiert der Browser die Abfrage ohnehin — dann lieber gleich erklären.
+    if (!echterUrsprung) {
+      verlaufMeldung('Die Seite läuft über "' + location.protocol + '", nicht über http oder https; ' +
+        "daraus blockieren Browser Abfragen an fremde Server grundsätzlich. Über GitHub Pages entfällt das.", true);
+      return;
+    }
+
+    verlaufMeldung("Verlauf wird abgefragt …", false);
+
+    var bis = new Date();
+    var von = new Date(bis.getTime() - BEREICHE[b].tage * 864e5);
+    var vonISO = von.toISOString().slice(0, 10);
+    var bisISO = bis.toISOString().slice(0, 10);
+    var lauf = ++verlaufLauf;
+
+    Promise.all([
+      versucheReihe(API_VERLAUF(m, vonISO, bisISO)).then(reiheAus),
+      versucheReihe(API_FX_REIHE(vonISO, bisISO)).then(fxReiheAus)
+    ]).then(function (res) {
+      // Zwischenzeitlich weitergetippt? Dann ist diese Antwort veraltet.
+      if (lauf !== verlaufLauf) return;
+      var punkte = verbinde(res[0], res[1]);
+      if (punkte.length < 2) {
+        verlaufMeldung("Für diesen Zeitraum liegen keine Daten vor.", false);
+        return;
+      }
+      verlaufCache[schluessel] = punkte;
+      maleVerlauf(punkte);
+    }).catch(function (err) {
+      if (lauf !== verlaufLauf) return;
+      verlaufMeldung("Verlauf nicht abrufbar — " + fehlerKlartext(err) + ".", true);
+    });
+  }
+
+  kursKacheln.forEach(function (kachel) {
+    kachel.addEventListener("click", function () {
+      var m = kachel.getAttribute("data-metall");
+      offenesMetall = (offenesMetall === m) ? null : m;   // nochmal tippen schließt
+      kursKacheln.forEach(function (k) {
+        k.setAttribute("aria-pressed", String(k.getAttribute("data-metall") === offenesMetall));
+      });
+      verlaufBox.hidden = !offenesMetall;
+      if (offenesMetall) zeigeVerlauf();
+    });
+  });
+
+  verlaufBereiche.querySelectorAll("button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      verlaufBereiche.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      offenerBereich = btn.getAttribute("data-bereich");
+      zeigeVerlauf();
     });
   });
 
