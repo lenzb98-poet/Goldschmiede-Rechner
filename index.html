@@ -497,6 +497,45 @@
     transform: rotate(45deg);
   }
 
+  /* --- Ring-Größentabelle --- */
+  .size-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .size-table thead {
+    background: var(--bg);
+    border-bottom: 2px solid var(--border);
+  }
+
+  .size-table th {
+    padding: 0.7rem 0.6rem;
+    text-align: center;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
+  .size-table tbody tr:hover {
+    background: var(--bg);
+  }
+
+  .size-table td {
+    padding: 0.6rem;
+    text-align: center;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .size-table .size-label {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  .size-table .size-value {
+    color: var(--text-dim);
+  }
+
   .k-status {
     font-size: 0.88rem;
     color: var(--gold-dim);
@@ -634,6 +673,7 @@
 
 <nav class="tabs" id="tabs">
   <button class="tab active" data-tab="ring">Ringrechner</button>
+  <button class="tab" data-tab="umfang">Umfang & Ø</button>
   <button class="tab" data-tab="wert">Materialwert</button>
 </nav>
 
@@ -760,6 +800,51 @@
     </details>
   </section>
 
+  <section class="panel" id="panel-umfang">
+    <div class="card">
+      <div class="field">
+        <label>Eingabe als</label>
+        <div class="segmented" id="umfang-mode">
+          <button data-mode="umfang" class="active"># Umfang</button>
+          <button data-mode="durchmesser">Durchmesser</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label id="umfang-value-label"># Innenumfang (Ringgröße)</label>
+        <div class="field-row" id="umfang-value-row">
+          <select class="wheel-select" id="umfang-value-wheel"></select>
+          <div class="input-with-unit" id="umfang-value-manual" hidden>
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="umfang-value" placeholder="z. B. 54">
+            <span class="unit">mm</span>
+          </div>
+          <button type="button" class="mode-toggle" id="umfang-value-toggle">manuell</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="umfang-output">
+      <div class="placeholder">Wert eingeben, um das Ergebnis zu sehen.</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin: 0 0 1rem; font-size: 1.15rem; color: var(--gold); font-weight: 600;">Ringgrößentabelle (DIN 6935)</h3>
+      <div style="overflow-x: auto;">
+        <table class="size-table">
+          <thead>
+            <tr>
+              <th>Größe</th>
+              <th>Umfang (mm)</th>
+              <th>Durchmesser (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="umfang-table-body">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-wert">
     <div class="card">
       <div class="kurs-grid">
@@ -868,8 +953,6 @@
   var kommende = [
     { id: "goldankauf", tab: "Goldankauf",     titel: "Goldankauf",
       text: "Ankaufspreis für Altgold: Gewicht, Feingehalt und Tagespreis abzüglich Ankaufsabschlag ergeben die Auszahlungssumme." },
-    { id: "umfang",   tab: "Umfang & Ø",  titel: "2 · Umfang und Durchmesser",
-      text: "Reiner Umrechner in beide Richtungen, dazu eine Ringgrößentabelle zum Nachschlagen." },
     { id: "legierung", tab: "Legierung",       titel: "3 · Legierungsrechnung",
       text: "Wie viel Feingold und wie viel Zuschlag für x Gramm in y Karat. Dazu der umgekehrte Fall: vorhandenes Material hochlegieren oder abstrecken." },
     { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
@@ -1406,6 +1489,136 @@
   // und Korrekturfaktor-Anzeige sofort dazu passen, statt bis zur ersten
   // Bedienung den leeren Platzhalter zu zeigen.
   valueInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+  // --- Modul 2: Umfang und Durchmesser ---
+  // Bidirektionale Umrechnung mit Rad und manueller Eingabe
+  var umfangMode = "umfang"; // "umfang" | "durchmesser"
+  var umfangModeButtons = document.querySelectorAll("#umfang-mode button");
+  var umfangValueLabel = document.getElementById("umfang-value-label");
+  var umfangValueInput = document.getElementById("umfang-value");
+  var umfangOutput = document.getElementById("umfang-output");
+
+  // Ring-Größentabelle: DIN 6935, Größen 49-77 (Umfang in mm)
+  var ringGroessen = [];
+  for (var i = 49; i <= 77; i++) {
+    ringGroessen.push(i);
+  }
+
+  // Tabelle befüllen
+  var tableBody = document.getElementById("umfang-table-body");
+  ringGroessen.forEach(function (size) {
+    var row = document.createElement("tr");
+    var umfang = size;
+    var durchmesser = umfang / Math.PI;
+    row.innerHTML = '<td class="size-label">' + size + '</td>' +
+                   '<td class="size-value">' + fmt(umfang, 1) + '</td>' +
+                   '<td class="size-value">' + fmt(durchmesser, 2) + '</td>';
+    tableBody.appendChild(row);
+  });
+
+  // Räder für Umfang und Durchmesser aufbauen
+  wireRadManuell({
+    input: umfangValueInput,
+    select: document.getElementById("umfang-value-wheel"),
+    manualBox: document.getElementById("umfang-value-manual"),
+    toggleBtn: document.getElementById("umfang-value-toggle"),
+    min: 49, max: 77, schritt: 1,
+    einheit: "mm",
+    start: 55
+  });
+
+  var umfangValueWheel = document.getElementById("umfang-value-wheel");
+  var umfangValueManual = document.getElementById("umfang-value-manual");
+  var umfangValueToggle = document.getElementById("umfang-value-toggle");
+
+  umfangModeButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      umfangModeButtons.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      umfangMode = btn.getAttribute("data-mode");
+      umfangValueLabel.textContent = umfangMode === "umfang"
+        ? "# Innenumfang (Ringgröße)"
+        : "Innendurchmesser";
+
+      // In Durchmesser-Modus: nur manuelle Eingabe (Durchmesser-Bereich außerhalb der Radwerte)
+      if (umfangMode === "durchmesser") {
+        umfangValueWheel.parentElement.style.display = "none";
+        umfangValueManual.hidden = false;
+        umfangValueToggle.hidden = true;
+      } else {
+        umfangValueWheel.parentElement.style.display = "block";
+        umfangValueManual.hidden = true;
+        umfangValueToggle.hidden = false;
+      }
+
+      // Bei Modowechsel das aktuelle Eingabefeld in das neue konvertieren
+      var currentValue = parseDe(umfangValueInput.value);
+      if (!isNaN(currentValue) && currentValue > 0) {
+        if (umfangMode === "umfang") {
+          // von Durchmesser zu Umfang
+          umfangValueInput.value = fmt(currentValue * Math.PI, 2);
+        } else {
+          // von Umfang zu Durchmesser
+          umfangValueInput.value = fmt(currentValue / Math.PI, 2);
+        }
+      }
+      calcUmfang();
+    });
+  });
+
+  function calcUmfang() {
+    var rawValue = umfangValueInput.value;
+
+    if (rawValue.trim() === "") {
+      umfangOutput.innerHTML = '<div class="placeholder">Wert eingeben, um das Ergebnis zu sehen.</div>';
+      return;
+    }
+
+    var value = parseDe(rawValue);
+
+    if (isNaN(value)) {
+      umfangOutput.innerHTML = '<div class="hint">Bitte gültige Zahl eingeben.</div>';
+      return;
+    }
+
+    if (value <= 0) {
+      umfangOutput.innerHTML = '<div class="hint">Bitte Wert größer als 0 eingeben.</div>';
+      return;
+    }
+
+    var U, D;
+    if (umfangMode === "umfang") {
+      U = value;
+      D = U / Math.PI;
+    } else {
+      D = value;
+      U = Math.PI * D;
+    }
+
+    // Nächste Ringgröße finden (ganze Millimeter)
+    var sizeUp = Math.ceil(U);
+    var sizeLow = Math.floor(U);
+    var distUp = Math.abs(U - sizeUp);
+    var distLow = Math.abs(U - sizeLow);
+    var nearestSize = (distUp < distLow) ? sizeUp : sizeLow;
+    nearestSize = Math.max(49, Math.min(77, nearestSize));
+
+    umfangOutput.innerHTML =
+      '<div class="result-main">' +
+        '<div class="label">Innenumfang</div>' +
+        '<div class="value">' + fmt(U, 2) + '<span class="unit">mm</span></div>' +
+      '</div>' +
+      '<div class="result-grid">' +
+        '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
+        '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + nearestSize + '</div></div>' +
+      '</div>';
+  }
+
+  umfangValueInput.addEventListener("input", calcUmfang);
+
+  // Initial mit Standardwert ausrechnen
+  umfangValueInput.value = "55";
+  umfangValueInput.dispatchEvent(new Event("input", { bubbles: true }));
 
   /* --- Modul 6: Materialwert — Tageskurse -----------------------------
    *
