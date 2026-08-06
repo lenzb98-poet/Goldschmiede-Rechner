@@ -739,12 +739,67 @@
   .verlauf-chart {
     margin-top: 0.9rem;
     color: var(--metall);   /* die Linie erbt das per currentColor */
+    position: relative;     /* Bezug für die Ablese-Ebene darüber */
+    /* Senkrecht darf die Seite weiterscrollen, waagerechtes Wischen gehört
+       dem Ablesen. */
+    touch-action: pan-y;
+    outline: none;
+  }
+
+  .verlauf-chart:focus-visible {
+    box-shadow: 0 0 0 2px var(--gold);
+    border-radius: 0.3rem;
   }
 
   /* Feste Höhe + preserveAspectRatio="none": das Diagramm füllt die Breite
      aus, ohne auf dem iPad übermäßig hoch zu werden. Die Linie behält ihre
      Strichstärke über vector-effect. */
   .verlauf-chart svg { display: block; width: 100%; height: 150px; }
+
+  /* --- Ablesen: drei Elemente als HTML ÜBER dem SVG ---------------------
+     Bewusst nicht im SVG: das wird mit preserveAspectRatio="none" gestreckt,
+     ein <circle> käme dort als Ellipse heraus. */
+  .verlauf-linie,
+  .verlauf-marke,
+  .verlauf-lese {
+    position: absolute;
+    pointer-events: none;      /* dürfen die Bedienung nicht abfangen */
+    display: none;
+  }
+
+  .verlauf-chart.liest .verlauf-linie,
+  .verlauf-chart.liest .verlauf-marke,
+  .verlauf-chart.liest .verlauf-lese { display: block; }
+
+  .verlauf-linie {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
+  .verlauf-marke {
+    width: 0.7rem;
+    height: 0.7rem;
+    margin: -0.35rem 0 0 -0.35rem;   /* auf den Punkt zentrieren */
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 2px var(--panel);
+  }
+
+  .verlauf-lese {
+    top: 0;
+    transform: translateX(-50%);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
 
   .verlauf-achse {
     display: flex;
@@ -2305,19 +2360,29 @@
   // --- Zeichnen: reines Inline-SVG, keine fremde Bibliothek ---
   var CHART_B = 320, CHART_H = 140, RAND_O = 8, RAND_U = 8;
 
-  function zeichneVerlauf(punkte) {
+  /* Maßstab der senkrechten Achse. Bewusst ausgelagert, weil ihn ZWEI Stellen
+   * brauchen: das Zeichnen und das Ablesen. Zwei getrennte Rechnungen würden
+   * früher oder später auseinanderlaufen — dann säße die Marke neben der
+   * Kurve. */
+  function verlaufSkala(punkte) {
     var werte = punkte.map(function (p) { return p.wert; });
     var min = Math.min.apply(null, werte);
     var max = Math.max.apply(null, werte);
     var spanne = max - min;
     // Waagerechte Reihe: Linie in die Mitte legen, statt durch null zu teilen.
     if (spanne <= 0) { min -= 1; max += 1; spanne = max - min; }
+    return { min: min, max: max, spanne: spanne };
+  }
 
-    var nutzH = CHART_H - RAND_O - RAND_U;
+  // Senkrechte Lage eines Wertes in viewBox-Einheiten.
+  function verlaufY(wert, skala) {
+    return RAND_O + (CHART_H - RAND_O - RAND_U) * (1 - (wert - skala.min) / skala.spanne);
+  }
+
+  function zeichneVerlauf(punkte, skala) {
     var xy = punkte.map(function (p, i) {
       var x = punkte.length === 1 ? CHART_B / 2 : CHART_B * i / (punkte.length - 1);
-      var y = RAND_O + nutzH * (1 - (p.wert - min) / spanne);
-      return x.toFixed(2) + "," + y.toFixed(2);
+      return x.toFixed(2) + "," + verlaufY(p.wert, skala).toFixed(2);
     });
 
     var flaeche = "M0," + CHART_H + " L" + xy.join(" L") + " L" + CHART_B + "," + CHART_H + " Z";
@@ -2403,8 +2468,16 @@
     var tief = Math.min.apply(null, werte);
     var hoch = Math.max.apply(null, werte);
 
+    var skala = verlaufSkala(punkte);
+
     verlaufInhalt.innerHTML =
-      '<div class="verlauf-chart">' + zeichneVerlauf(punkte) + '</div>' +
+      '<div class="verlauf-chart" tabindex="0" aria-label="Kursverlauf ' + NAME[offenesMetall] +
+          ', mit Pfeiltasten Werte ablesen">' +
+        zeichneVerlauf(punkte, skala) +
+        '<div class="verlauf-linie"></div>' +
+        '<div class="verlauf-marke"></div>' +
+        '<div class="verlauf-lese"></div>' +
+      '</div>' +
       '<div class="verlauf-achse">' +
         '<span>' + datumDe(punkte[0].datum) + '</span>' +
         '<span>' + datumDe(punkte[punkte.length - 1].datum) + '</span>' +
@@ -2415,6 +2488,98 @@
       '</div>' +
       '<div class="verlauf-fuss"></div>';
     verlaufInhalt.querySelector(".verlauf-fuss").textContent = verlaufFussText();
+
+    // Ablesen anbinden. Das Diagramm wird bei jedem Neuzeichnen frisch
+    // erzeugt, die Zuhörer sterben also mit dem Element — kein Aufräumen,
+    // keine Mehrfachanmeldung, und die Marke ist nach einem Wechsel von
+    // Zeitraum oder Metall von selbst wieder weg.
+    verbindeAblesen(verlaufInhalt.querySelector(".verlauf-chart"), punkte, skala, stellen);
+  }
+
+  /* --- Wert an einer Stelle ablesen -----------------------------------
+   *
+   * Abgelesen wird immer der NÄCHSTGELEGENE echte Handelstag, nie ein
+   * Zwischenwert: die Reihe besteht aus Tagesschlusskursen, ein interpolierter
+   * Punkt wäre eine Zahl, die es nie gegeben hat.
+   *
+   * Maus: folgt dem Zeiger ohne Drücken, verschwindet beim Verlassen.
+   * Finger/Stift: Antippen setzt die Marke, sie BLEIBT nach dem Loslassen
+   * stehen — sonst wäre der Wert genau dann weg, wenn man ihn ablesen will.
+   */
+  function verbindeAblesen(box, punkte, skala, stellen) {
+    if (!box || punkte.length < 2) return;
+
+    var linie = box.querySelector(".verlauf-linie");
+    var marke = box.querySelector(".verlauf-marke");
+    var lese = box.querySelector(".verlauf-lese");
+    var letzterIndex = -1;
+    var zieht = false;
+
+    function zeige(i) {
+      i = Math.max(0, Math.min(punkte.length - 1, i));
+      var rect = box.getBoundingClientRect();
+      if (!rect.width) return;
+
+      var p = punkte[i];
+      var xPx = i / (punkte.length - 1) * rect.width;
+      // Die viewBox wird gestreckt, deshalb über die gemessene Höhe umrechnen.
+      var yPx = verlaufY(p.wert, skala) / CHART_H * rect.height;
+
+      box.classList.add("liest");
+      linie.style.left = xPx + "px";
+      marke.style.left = xPx + "px";
+      marke.style.top = yPx + "px";
+
+      lese.textContent = datumDe(p.datum) + " · " + fmt(p.wert, stellen) + " €";
+      // Beschriftung waagerecht mitführen, aber im Kasten halten.
+      var halb = lese.offsetWidth / 2;
+      lese.style.left = Math.max(halb + 2, Math.min(rect.width - halb - 2, xPx)) + "px";
+
+      letzterIndex = i;
+    }
+
+    function verbirg() {
+      box.classList.remove("liest");
+      letzterIndex = -1;
+    }
+
+    function indexAus(clientX) {
+      var rect = box.getBoundingClientRect();
+      if (!rect.width) return 0;
+      var anteil = (clientX - rect.left) / rect.width;
+      return Math.round(Math.max(0, Math.min(1, anteil)) * (punkte.length - 1));
+    }
+
+    box.addEventListener("pointerdown", function (e) {
+      zieht = true;
+      // Damit das Ziehen auch außerhalb des Kastens weiterläuft.
+      if (box.setPointerCapture) { try { box.setPointerCapture(e.pointerId); } catch (x) {} }
+      zeige(indexAus(e.clientX));
+    });
+
+    box.addEventListener("pointermove", function (e) {
+      // Maus liest schon beim Überfahren, Finger nur solange gedrückt.
+      if (zieht || e.pointerType === "mouse") zeige(indexAus(e.clientX));
+    });
+
+    box.addEventListener("pointerup", function () { zieht = false; });
+    box.addEventListener("pointercancel", function () { zieht = false; });
+
+    box.addEventListener("pointerleave", function (e) {
+      // Nur die Maus blendet aus; die Fingermarke soll stehenbleiben.
+      if (e.pointerType === "mouse" && !zieht) verbirg();
+    });
+
+    box.addEventListener("keydown", function (e) {
+      var start = letzterIndex < 0 ? punkte.length - 1 : letzterIndex;
+      if (e.key === "ArrowRight") { zeige(start + 1); }
+      else if (e.key === "ArrowLeft") { zeige(start - 1); }
+      else if (e.key === "Home") { zeige(0); }
+      else if (e.key === "End") { zeige(punkte.length - 1); }
+      else if (e.key === "Escape") { verbirg(); return; }
+      else return;
+      e.preventDefault();   // Seite soll dabei nicht scrollen
+    });
   }
 
   /* Rohreihe je Metall besorgen: Quellen der Reihe nach durchgehen, die erste
@@ -2541,6 +2706,14 @@
       verlaufBox.hidden = !offenesMetall;
       if (offenesMetall) zeigeVerlauf();
     });
+  });
+
+  // Nach einer Größenänderung stimmt die Lage der Marke nicht mehr. Bewusst
+  // EIN Zuhörer am Fenster statt einer je Neuzeichnung — sonst sammeln sie
+  // sich mit jedem Wechsel von Zeitraum oder Metall an.
+  window.addEventListener("resize", function () {
+    var box = verlaufInhalt.querySelector(".verlauf-chart");
+    if (box) box.classList.remove("liest");
   });
 
   verlaufBereiche.querySelectorAll("button").forEach(function (btn) {
