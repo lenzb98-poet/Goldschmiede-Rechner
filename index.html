@@ -730,10 +730,20 @@
   .verlauf-aend.runter { color: #d9705e; }
 
   /* Bereichswahl: dieselbe Optik wie die übrigen Segmentleisten, nur
-     kompakter — vier Knöpfe müssen auf ein Telefon passen. */
+     kompakter — fünf Knöpfe müssen auf ein Telefon passen. */
+  .verlauf-bereiche { gap: 0.35rem; }
+
   .verlauf-bereiche button {
-    padding: 0.6rem 0.2rem;
-    font-size: 0.9rem;
+    padding: 0.6rem 0.15rem;
+    font-size: 0.85rem;
+    /* Ohne das bricht "1 Woche" auf schmalen Geräten um und macht diesen
+       einen Knopf höher als die übrigen vier. */
+    white-space: nowrap;
+  }
+
+  @media (max-width: 420px) {
+    .verlauf-bereiche { gap: 0.22rem; }
+    .verlauf-bereiche button { font-size: 0.72rem; padding: 0.55rem 0.05rem; }
   }
 
   .verlauf-chart {
@@ -1068,6 +1078,7 @@
           <button type="button" data-bereich="monat">1 Monat</button>
           <button type="button" data-bereich="jahr">1 Jahr</button>
           <button type="button" data-bereich="fuenf">5 Jahre</button>
+          <button type="button" data-bereich="gesamt">Gesamt</button>
         </div>
         <div id="verlauf-inhalt"></div>
       </div>
@@ -2156,12 +2167,17 @@
    * Handeingabe und Rechner unberührt. Abgefragt wird erst beim Antippen,
    * damit der Reiter weiterhin sofort steht.
    */
+  // tage === null bedeutet: nicht zuschneiden, alles zeigen, was die Quelle
+  // hergibt (bei LBMA reicht das für Gold bis weit zurück).
   var BEREICHE = {
-    woche: { tage: 7,    text: "1 Woche" },
-    monat: { tage: 30,   text: "1 Monat" },
-    jahr:  { tage: 365,  text: "1 Jahr" },
-    fuenf: { tage: 1826, text: "5 Jahre" }
+    woche:  { tage: 7,    text: "1 Woche" },
+    monat:  { tage: 30,   text: "1 Monat" },
+    jahr:   { tage: 365,  text: "1 Jahr" },
+    fuenf:  { tage: 1826, text: "5 Jahre" },
+    gesamt: { tage: null, text: "Gesamt" }
   };
+
+  var MAX_CHARTPUNKTE = 800;   // darüber wird ausgedünnt, siehe duenneAus()
 
   var KLASSE = { XAG: "metall-silber", XAU: "metall-gold", XPT: "metall-platin" };
 
@@ -2248,30 +2264,96 @@
   function lbmaReihe(daten) {
     if (!Array.isArray(daten)) return { punkte: [], waehrung: null };
 
-    var punkte = [], eurTauglich = true;
+    var punkte = [];
     daten.forEach(function (e) {
       var d = alsDatum(e && e.d);
       var v = e && e.v;
       if (!d || !Array.isArray(v)) return;
       var usd = zahlAus(v[0]);
-      var gbp = zahlAus(v[1]);
-      var eur = zahlAus(v[2]);
       if (isNaN(usd)) return;
-      if (isNaN(eur) || isNaN(gbp) || !(usd >= eur && eur >= gbp)) eurTauglich = false;
-      punkte.push({ datum: d, usd: usd, eur: eur });
+      // Alle drei Spalten behalten. Ob die Euro-Spalte taugt, wird ERST beim
+      // Zuschneiden entschieden (siehe bereiteReihe): Die Datei reicht bis
+      // weit vor die Euro-Einführung zurück, dort steht keine Euro-Notierung.
+      // Eine Prüfung über die ganze Datei würde daran scheitern und die
+      // Euro-Anzeige auch für die kurzen Zeiträume kippen.
+      punkte.push({ datum: d, usd: usd, gbp: zahlAus(v[1]), eur: zahlAus(v[2]) });
     });
 
-    punkte.sort(nachDatum);
-    if (eurTauglich && punkte.length) {
-      return {
-        punkte: punkte.map(function (p) { return { datum: p.datum, wert: p.eur }; }),
-        waehrung: "EUR"
-      };
+    return { punkte: punkte.sort(nachDatum), waehrung: "LBMA" };
+  }
+
+  /* Entscheidet für den ZUGESCHNITTENEN Ausschnitt, ob in Euro gezeichnet
+   * werden kann.
+   *
+   * Zur Spaltenfolge [USD, GBP, EUR]: Geprüft wird, dass der GBP-Betrag der
+   * kleinste ist. Das gilt über die ganze Historie (das Pfund war nie
+   * schwächer als Euro oder Dollar) und fängt den wahrscheinlichsten Irrtum
+   * ab, nämlich die GBP-Spalte für die Euro-Spalte zu halten — das wären gut
+   * 13 % daneben.
+   *
+   * Bewusst NICHT geprüft wird "USD größer als EUR": das gilt nur, solange
+   * der Euro stärker ist als der Dollar, und war 1999-2002 andersherum. Eine
+   * solche Prüfung würde bei echten Altdaten Fehlalarm schlagen.
+   *
+   * Damit bleibt eine Lücke, die ehrlich benannt sei: Wären USD- und
+   * EUR-Spalte vertauscht, fiele das hier NICHT auf, weil beide Beträge nur
+   * rund 15 % auseinanderliegen — strukturell sind sie nicht zu
+   * unterscheiden. Dagegen hilft nur die dokumentierte Reihenfolge.
+   *
+   * Tage ganz ohne Euro-Notierung werden weggelassen, statt die ganze Reihe
+   * auf den USD-Weg zu zwingen: vor 1999 gab es den Euro nicht, ein
+   * umgerechneter Wert wäre erfunden. "Gesamt" beginnt für Gold deshalb
+   * schlicht dort, wo die Euro-Notierung anfängt.
+   */
+  function bereiteReihe(reihe, art) {
+    if (art === "LBMA") {
+      var eurPunkte = reihe.filter(function (p) {
+        if (isNaN(p.eur) || isNaN(p.usd)) return false;
+        if (!isNaN(p.gbp) && (p.gbp > p.eur || p.gbp > p.usd)) return false;
+        var groesser = Math.max(p.usd, p.eur), kleiner = Math.min(p.usd, p.eur);
+        return groesser / kleiner < 3;
+      }).map(function (p) { return { datum: p.datum, wert: p.eur }; });
+
+      if (eurPunkte.length >= 2) return { punkte: eurPunkte, waehrung: "EUR" };
     }
+
     return {
-      punkte: punkte.map(function (p) { return { datum: p.datum, wert: p.usd }; }),
+      punkte: reihe.filter(function (p) { return !isNaN(p.usd); })
+                   .map(function (p) { return { datum: p.datum, wert: p.usd }; }),
       waehrung: "USD"
     };
+  }
+
+  /* Sehr lange Reihen ausdünnen. "Gesamt" bringt mehrere tausend Handelstage
+   * mit — auf rund 700 Bildpunkten Breite wäre das vielfache Überzeichnung,
+   * die Kurve würde in bewegten Abschnitten zum Balken.
+   *
+   * Ausgedünnt wird eimerweise über Tiefst- UND Höchstwert, nicht über jeden
+   * n-ten Punkt: so bleiben die Ausschläge erhalten, und Tief/Hoch stimmen
+   * weiterhin exakt, weil der Eimer mit dem Extremwert diesen auch abgibt.
+   * Erster und letzter Punkt werden festgehalten, damit die Veränderung über
+   * den Zeitraum unverfälscht bleibt.
+   */
+  function duenneAus(punkte, hoechstens) {
+    if (punkte.length <= hoechstens) return punkte;
+
+    var proEimer = Math.ceil(punkte.length / (hoechstens / 2));
+    var out = [];
+    for (var i = 0; i < punkte.length; i += proEimer) {
+      var tiefster = null, hoechster = null;
+      for (var j = i; j < Math.min(i + proEimer, punkte.length); j++) {
+        if (!tiefster || punkte[j].wert < tiefster.wert) tiefster = punkte[j];
+        if (!hoechster || punkte[j].wert > hoechster.wert) hoechster = punkte[j];
+      }
+      if (tiefster === hoechster) { out.push(tiefster); continue; }
+      // in zeitlicher Reihenfolge ausgeben, sonst zackt die Linie zurück
+      if (tiefster.datum <= hoechster.datum) { out.push(tiefster); out.push(hoechster); }
+      else { out.push(hoechster); out.push(tiefster); }
+    }
+
+    if (out[0] !== punkte[0]) out.unshift(punkte[0]);
+    if (out[out.length - 1] !== punkte[punkte.length - 1]) out.push(punkte[punkte.length - 1]);
+    return out;
   }
 
   /* Stooq: CSV mit Kopfzeile "Date,Open,High,Low,Close,Volume", USD je Unze.
@@ -2291,7 +2373,7 @@
       var f = zeilen[i].split(",");
       var d = alsDatum(f[iDatum]);
       var w = zahlAus(f[iSchluss]);
-      if (d && !isNaN(w)) punkte.push({ datum: d, wert: w });
+      if (d && !isNaN(w)) punkte.push({ datum: d, usd: w });
     }
     return { punkte: punkte.sort(nachDatum), waehrung: "USD" };
   }
@@ -2340,12 +2422,17 @@
     }
 
     if (!fxReihe || !fxReihe.length) return [];
-    var out = [], i = 0, letzterFx = fxReihe[0].wert;
+    var out = [], i = 0, letzterFx = null;
     metallReihe.forEach(function (p) {
       while (i < fxReihe.length && fxReihe[i].datum <= p.datum) {
         letzterFx = fxReihe[i].wert;
         i++;
       }
+      // Vor dem ersten bekannten Wechselkurs (Euro-Start 1999) gibt es keinen
+      // Euro-Wert. Solche Tage fallen heraus, statt mit dem ältesten Kurs
+      // hochgerechnet zu werden — das wäre eine erfundene Zahl. Betrifft in
+      // der Praxis nur "Gesamt" auf dem USD-Weg.
+      if (letzterFx == null) return;
       out.push({ datum: p.datum, wert: p.wert * letzterFx / UNZE_IN_GRAMM });
     });
     return out;
@@ -2428,22 +2515,24 @@
     verlaufAend.className = "verlauf-aend";
   }
 
-  function verlaufFussText() {
-    // Quelle und Währung kommen aus dem Rohspeicher des gerade offenen
-    // Metalls, nicht aus einer nebenherlaufenden Variablen: sonst stünde bei
-    // einem Treffer im Zwischenspeicher noch die Angabe des zuvor
-    // angesehenen Metalls da.
-    var roh = offenesMetall ? rohCache[offenesMetall] : null;
-    var quelle = roh && roh.quelle;
-    // Der Zusatz zur Umrechnung darf nur dastehen, wenn wirklich umgerechnet
-    // wurde — sonst behauptet die Fußzeile etwas Falsches, sobald eine Quelle
-    // wider Erwarten in USD statt in Euro geliefert hat.
-    var woher = quelle === "LBMA" ? "Amtliche Londoner Fixings (LBMA)"
-              : quelle ? "Tagesschlusskurse (" + quelle + ")"
+  /* Quelle und Währung stehen am Eintrag des Zwischenspeichers, nicht an
+   * einer nebenherlaufenden Variablen: die Währung kann je Zeitraum
+   * verschieden ausfallen (siehe bereiteReihe), und bei einem Treffer im
+   * Speicher stünde sonst noch die Angabe des zuvor Angesehenen da. */
+  function verlaufFussText(eintrag) {
+    var woher = eintrag.quelle === "LBMA" ? "Amtliche Londoner Fixings (LBMA)"
+              : eintrag.quelle ? "Tagesschlusskurse (" + eintrag.quelle + ")"
               : "Tagesschlusskurse";
-    var t = woher + (roh && roh.waehrung === "EUR"
+    // Der Zusatz zur Umrechnung darf nur dastehen, wenn wirklich umgerechnet
+    // wurde — sonst behauptet die Fußzeile etwas Falsches.
+    var t = woher + (eintrag.waehrung === "EUR"
       ? ", Euro-Notierung je Handelstag."
       : ", je Tag mit dem EZB-Referenzkurs desselben Tages umgerechnet.");
+
+    if (eintrag.ausgeduennt) {
+      t += " Für die Darstellung ausgedünnt; Tief, Hoch und die abgelesenen " +
+           "Werte sind echte Handelstage.";
+    }
     if (offenesMetall && handKurse[offenesMetall] != null) {
       t += " Für " + NAME[offenesMetall] + " ist oben ein Kurs von Hand eingetragen — " +
            "der Verlauf zeigt weiterhin die Marktdaten.";
@@ -2451,7 +2540,8 @@
     return t;
   }
 
-  function maleVerlauf(punkte) {
+  function maleVerlauf(eintrag) {
+    var punkte = eintrag.punkte;
     var erster = punkte[0].wert;
     var letzter = punkte[punkte.length - 1].wert;
     var diff = letzter - erster;
@@ -2487,7 +2577,7 @@
         '<span>Hoch <strong>' + fmt(hoch, stellen) + ' €</strong></span>' +
       '</div>' +
       '<div class="verlauf-fuss"></div>';
-    verlaufInhalt.querySelector(".verlauf-fuss").textContent = verlaufFussText();
+    verlaufInhalt.querySelector(".verlauf-fuss").textContent = verlaufFussText(eintrag);
 
     // Ablesen anbinden. Das Diagramm wird bei jedem Neuzeichnen frisch
     // erzeugt, die Zuhörer sterben also mit dem Element — kein Aufräumen,
@@ -2545,8 +2635,12 @@
 
     function indexAus(clientX) {
       var rect = box.getBoundingClientRect();
-      if (!rect.width) return 0;
-      var anteil = (clientX - rect.left) / rect.width;
+      if (rect.width < 2) return 0;
+      // Nenner ist die Breite MINUS EINS, damit die letzte Bildspalte auch
+      // wirklich den letzten Punkt trifft. Mit rect.width als Nenner bliebe
+      // der letzte Handelstag bei dichten Reihen unerreichbar — er läge erst
+      // hinter dem rechten Rand.
+      var anteil = (clientX - rect.left) / (rect.width - 1);
       return Math.round(Math.max(0, Math.min(1, anteil)) * (punkte.length - 1));
     }
 
@@ -2627,13 +2721,18 @@
     });
   }
 
-  // Wechselkursreihe nur holen, wenn die Metallreihe nicht schon in Euro ist.
-  // Einmal über den längsten Zeitraum, danach wird zugeschnitten.
+  /* Wechselkursreihe nur holen, wenn die Metallreihe nicht schon in Euro ist.
+   * Einmal über die volle Spanne, danach dient sie allen Zeiträumen.
+   *
+   * Beginn ist der erste Handelstag des Euro. Früher gibt es schlicht keinen
+   * EUR/USD-Kurs — ein davor "umgerechneter" Wert wäre erfunden. Metalltage
+   * vor diesem Datum fallen deshalb in inEuroJeGramm() heraus. */
+  var EURO_START = "1999-01-04";
+
   function holeFxReihe() {
     if (fxCache) return Promise.resolve(fxCache);
-    var bis = new Date();
-    var von = new Date(bis.getTime() - BEREICHE.fuenf.tage * 864e5);
-    return versucheReihe(API_FX_REIHE(von.toISOString().slice(0, 10), bis.toISOString().slice(0, 10)))
+    var bis = new Date().toISOString().slice(0, 10);
+    return versucheReihe(API_FX_REIHE(EURO_START, bis))
       .then(fxReiheAus)
       .then(function (reihe) { fxCache = reihe; return reihe; });
   }
@@ -2658,27 +2757,41 @@
 
     verlaufMeldung("Verlauf wird abgefragt …", false);
 
-    var vonISO = new Date(Date.now() - BEREICHE[b].tage * 864e5).toISOString().slice(0, 10);
+    // "Gesamt" schneidet nicht zu: alles nehmen, was die Quelle hergibt.
+    var vonISO = BEREICHE[b].tage == null
+      ? "0000-01-01"
+      : new Date(Date.now() - BEREICHE[b].tage * 864e5).toISOString().slice(0, 10);
     var lauf = ++verlaufLauf;
 
     holeRohreihe(m).then(function (erg) {
-      // Wechselkurs nur, wenn die Quelle in USD liefert.
-      if (erg.waehrung === "EUR") return { erg: erg, fx: null };
-      return holeFxReihe().then(function (fx) { return { erg: erg, fx: fx }; });
+      // Erst zuschneiden, DANN die Währung festlegen: ob die Euro-Notierung
+      // taugt, hängt vom Ausschnitt ab (vor 1999 gab es sie nicht).
+      var vorb = bereiteReihe(schneide(erg.punkte, vonISO), erg.waehrung);
+      // Wechselkurs nur holen, wenn wirklich umgerechnet werden muss.
+      if (vorb.waehrung === "EUR") return { erg: erg, vorb: vorb, fx: null };
+      return holeFxReihe().then(function (fx) { return { erg: erg, vorb: vorb, fx: fx }; });
     }).then(function (paket) {
       // Zwischenzeitlich weitergetippt? Dann ist diese Antwort veraltet.
       if (lauf !== verlaufLauf) return;
 
-      var reihe = schneide(paket.erg.punkte, vonISO);
-      var punkte = inEuroJeGramm(reihe, paket.erg.waehrung, paket.fx);
+      var punkte = inEuroJeGramm(paket.vorb.punkte, paket.vorb.waehrung, paket.fx);
 
       if (punkte.length < 2) {
         verlaufMeldung("Für diesen Zeitraum liegen keine Daten vor.", false);
         zeigeVerlaufDiagnose(paket.erg.notizen);
         return;
       }
-      verlaufCache[schluessel] = punkte;
-      maleVerlauf(punkte);
+
+      var voll = punkte.length;
+      punkte = duenneAus(punkte, MAX_CHARTPUNKTE);
+
+      verlaufCache[schluessel] = {
+        punkte: punkte,
+        quelle: paket.erg.quelle,
+        waehrung: paket.vorb.waehrung,
+        ausgeduennt: punkte.length < voll
+      };
+      maleVerlauf(verlaufCache[schluessel]);
     }).catch(function (err) {
       if (lauf !== verlaufLauf) return;
       verlaufMeldung("Verlauf nicht abrufbar — " + fehlerKlartext(err) + ".", true);
