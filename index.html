@@ -516,7 +516,12 @@
     color: var(--text-dim);
   }
 
-  .size-table tbody tr:hover {
+  .size-row {
+    cursor: pointer;
+  }
+
+  .size-table tbody tr:hover,
+  .size-row:active {
     background: var(--bg);
   }
 
@@ -534,6 +539,19 @@
 
   .size-table .size-value {
     color: var(--text-dim);
+  }
+
+  /* Zeile, die zum aktuell berechneten Wert passt (nächste Ringgröße) */
+  .size-row-active {
+    background: rgba(212, 175, 55, 0.14);
+  }
+
+  .size-row-active td {
+    border-bottom-color: var(--gold-dim);
+  }
+
+  .size-row-active .size-value {
+    color: var(--text);
   }
 
   .k-status {
@@ -828,7 +846,8 @@
     </div>
 
     <div class="card">
-      <h3 style="margin: 0 0 1rem; font-size: 1.15rem; color: var(--gold); font-weight: 600;">Ringgrößentabelle (DIN 6935)</h3>
+      <h3 style="margin: 0 0 0.3rem; font-size: 1.15rem; color: var(--gold); font-weight: 600;">Ringgrößentabelle (DIN 6935)</h3>
+      <p style="margin: 0 0 1rem; font-size: 0.85rem; color: var(--text-dim);">Antippen übernimmt die Größe oben in den Rechner. Die Zeile zum aktuellen Ergebnis ist markiert.</p>
       <div style="overflow-x: auto;">
         <table class="size-table">
           <thead>
@@ -1154,7 +1173,15 @@
     return {
       zeigeRad: zeigeRad,
       zeigeManuell: zeigeManuell,
-      istRadBevorzugt: function () { return radBevorzugt; }
+      istRadBevorzugt: function () { return radBevorzugt; },
+      // Wert von außen setzen (Moduswechsel, Tippen in die Größentabelle).
+      // Schreibt Eingabefeld und Rad gleich, damit beide Bedienarten
+      // denselben Wert zeigen, und löst das normale "input"-Ereignis aus.
+      setzeWert: function (wert) {
+        schreibeEingabefeld(wert);
+        radAufWertBringen(wert);
+        cfg.input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     };
   }
 
@@ -1504,20 +1531,31 @@
     ringGroessen.push(i);
   }
 
-  // Tabelle befüllen
+  // Tabelle befüllen. Jede Zeile ist antippbar: ein Tipp übernimmt die
+  // Größe direkt in den Rechner oben, statt dass die Tabelle nur zum
+  // Nachschlagen mit den Augen taugt.
   var tableBody = document.getElementById("umfang-table-body");
   ringGroessen.forEach(function (size) {
     var row = document.createElement("tr");
+    row.className = "size-row";
+    row.setAttribute("data-size", String(size));
     var umfang = size;
     var durchmesser = umfang / Math.PI;
     row.innerHTML = '<td class="size-label">' + size + '</td>' +
                    '<td class="size-value">' + fmt(umfang, 1) + '</td>' +
                    '<td class="size-value">' + fmt(durchmesser, 2) + '</td>';
+    row.addEventListener("click", function () {
+      uebernehmeGroesse(size);
+    });
     tableBody.appendChild(row);
   });
 
-  // Räder für Umfang und Durchmesser aufbauen
-  wireRadManuell({
+  // Rad für den Innenumfang aufbauen (dieselben Ringgrößen wie Modul 1: 49-77 mm).
+  // Für den Innendurchmesser gibt es kein sinnvolles Standard-Raster, daher
+  // dort — genau wie im Ringrechner — grundsätzlich die Texteingabe zeigen
+  // und den Umschalt-Knopf ausblenden, statt Rad/Feld/Knopf einzeln und
+  // fehleranfällig per style.display zu verwalten.
+  var umfangRad = wireRadManuell({
     input: umfangValueInput,
     select: document.getElementById("umfang-value-wheel"),
     manualBox: document.getElementById("umfang-value-manual"),
@@ -1527,9 +1565,17 @@
     start: 55
   });
 
-  var umfangValueWheel = document.getElementById("umfang-value-wheel");
-  var umfangValueManual = document.getElementById("umfang-value-manual");
   var umfangValueToggle = document.getElementById("umfang-value-toggle");
+
+  function umfangBedienungAktualisieren() {
+    if (umfangMode === "durchmesser") {
+      umfangValueToggle.hidden = true;
+      umfangRad.zeigeManuell();
+    } else {
+      umfangValueToggle.hidden = false;
+      if (umfangRad.istRadBevorzugt()) umfangRad.zeigeRad(); else umfangRad.zeigeManuell();
+    }
+  }
 
   umfangModeButtons.forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -1540,31 +1586,39 @@
         ? "# Innenumfang (Ringgröße)"
         : "Innendurchmesser";
 
-      // In Durchmesser-Modus: nur manuelle Eingabe (Durchmesser-Bereich außerhalb der Radwerte)
-      if (umfangMode === "durchmesser") {
-        umfangValueWheel.parentElement.style.display = "none";
-        umfangValueManual.hidden = false;
-        umfangValueToggle.hidden = true;
-      } else {
-        umfangValueWheel.parentElement.style.display = "block";
-        umfangValueManual.hidden = true;
-        umfangValueToggle.hidden = false;
+      // Aktuellen Wert ins jeweils andere Maß umrechnen, statt ihn stehen
+      // zu lassen — wer von 54 mm Umfang auf Durchmesser wechselt, will
+      // 17,19 mm sehen, nicht weiterhin "54".
+      var currentValue = parseDe(umfangValueInput.value);
+      var neuerWert = 55; // Rückfall, falls das Feld gerade leer/ungültig ist
+      if (!isNaN(currentValue) && currentValue > 0) {
+        neuerWert = umfangMode === "umfang" ? currentValue * Math.PI : currentValue / Math.PI;
+        // Auf 2 Nachkommastellen runden — sonst zeigt das Feld nach der
+        // Umrechnung hässliche Fließkomma-Reste wie "17,507044" statt "17,51".
+        neuerWert = Math.round(neuerWert * 100) / 100;
       }
 
-      // Bei Modowechsel das aktuelle Eingabefeld in das neue konvertieren
-      var currentValue = parseDe(umfangValueInput.value);
-      if (!isNaN(currentValue) && currentValue > 0) {
-        if (umfangMode === "umfang") {
-          // von Durchmesser zu Umfang
-          umfangValueInput.value = fmt(currentValue * Math.PI, 2);
-        } else {
-          // von Umfang zu Durchmesser
-          umfangValueInput.value = fmt(currentValue / Math.PI, 2);
-        }
-      }
-      calcUmfang();
+      umfangBedienungAktualisieren();
+      umfangRad.setzeWert(neuerWert);
     });
   });
+
+  // Antippen einer Tabellenzeile: Größe direkt übernehmen. Schaltet nötigenfalls
+  // zurück in den Umfang-Modus (die Tabelle ist nach Umfang sortiert) und
+  // scrollt das Ergebnis in den sichtbaren Bereich, damit der Tipp auch auf
+  // dem iPhone spürbar etwas bewirkt.
+  function uebernehmeGroesse(size) {
+    if (umfangMode !== "umfang") {
+      umfangModeButtons.forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-mode") === "umfang");
+      });
+      umfangMode = "umfang";
+      umfangValueLabel.textContent = "# Innenumfang (Ringgröße)";
+      umfangBedienungAktualisieren();
+    }
+    umfangRad.setzeWert(size);
+    umfangOutput.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   function calcUmfang() {
     var rawValue = umfangValueInput.value;
@@ -1602,16 +1656,38 @@
     var distLow = Math.abs(U - sizeLow);
     var nearestSize = (distUp < distLow) ? sizeUp : sizeLow;
     nearestSize = Math.max(49, Math.min(77, nearestSize));
+    var exakteGroesse = Math.abs(U - nearestSize) < 0.005;
+
+    // Kopfzahl ist immer der berechnete (nicht der eingegebene) Wert — wer
+    // den Durchmesser eintippt, will vor allem den Umfang sehen, und
+    // umgekehrt. Die Eingabe selbst steht zur Bestätigung im Raster darunter.
+    var kopfLabel, kopfWert, gridLabel, gridWert;
+    if (umfangMode === "umfang") {
+      kopfLabel = "Innendurchmesser"; kopfWert = D;
+      gridLabel = "# Innenumfang";    gridWert = U;
+    } else {
+      kopfLabel = "# Innenumfang";     kopfWert = U;
+      gridLabel = "Innendurchmesser"; gridWert = D;
+    }
 
     umfangOutput.innerHTML =
       '<div class="result-main">' +
-        '<div class="label">Innenumfang</div>' +
-        '<div class="value">' + fmt(U, 2) + '<span class="unit">mm</span></div>' +
+        '<div class="label">' + kopfLabel + '</div>' +
+        '<div class="value">' + fmt(kopfWert, 2) + '<span class="unit">mm</span></div>' +
       '</div>' +
       '<div class="result-grid">' +
-        '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
-        '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + nearestSize + '</div></div>' +
+        '<div class="result-item"><div class="label">' + gridLabel + '</div><div class="value">' + fmt(gridWert, 2) + ' mm</div></div>' +
+        '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + (exakteGroesse ? "" : "≈ ") + nearestSize + '</div></div>' +
       '</div>';
+
+    // Passende Zeile in der Tabelle hervorheben, damit man sofort sieht,
+    // wo der eigene Wert zwischen den Standardgrößen liegt. Bewusst ohne
+    // automatisches Scrollen — das würde bei jedem Tastendruck die Seite
+    // verspringen lassen, während gerade getippt wird.
+    var alleZeilen = tableBody.querySelectorAll(".size-row");
+    alleZeilen.forEach(function (row) {
+      row.classList.toggle("size-row-active", parseInt(row.getAttribute("data-size"), 10) === nearestSize);
+    });
   }
 
   umfangValueInput.addEventListener("input", calcUmfang);
