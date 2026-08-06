@@ -860,6 +860,93 @@
     color: var(--text-dim);
     word-break: break-word;
   }
+
+  /* --- Goldankauf: eine Karte je Schmuckstück ------------------------- */
+  .goldankauf-zeile {
+    position: relative;
+    padding-right: 3.2rem;   /* Platz für den Entfernen-Knopf oben rechts */
+  }
+
+  .zeile-entfernen {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .zeile-entfernen:active { border-color: var(--danger); color: var(--danger); }
+
+  .add-zeile {
+    display: block;
+    width: 100%;
+    margin: 0 0 1rem;
+    background: var(--panel);
+    color: var(--gold);
+    border: 2px dashed var(--gold-dim);
+    border-radius: 0.7rem;
+    padding: 0.9rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .add-zeile:active { border-color: var(--gold); }
+
+  /* --- Goldankauf: Endergebnis + Händler-Knopf ------------------------ */
+  .ergebnis-zeile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .goldankauf-preis-label {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+  }
+
+  .goldankauf-preis-wert {
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1.1;
+  }
+
+  .haendler-knopf {
+    flex: 0 0 auto;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .haendler-knopf[aria-expanded="true"] { border-color: var(--gold-dim); }
+
+  .haendler-bereich {
+    margin-top: 1.2rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+  }
 </style>
 </head>
 <body>
@@ -873,6 +960,7 @@
   <button class="tab active" data-tab="ring">Ringrechner</button>
   <button class="tab" data-tab="umfang">Umfang & Ø</button>
   <button class="tab" data-tab="wert">Materialwert</button>
+  <button class="tab" data-tab="goldankauf">Goldankauf</button>
 </nav>
 
 <main id="panels">
@@ -1142,6 +1230,71 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-goldankauf">
+    <div id="goldankauf-zeilen"></div>
+
+    <button type="button" class="add-zeile" id="goldankauf-hinzufuegen">+ Schmuckstück hinzufügen</button>
+
+    <div class="card">
+      <div class="ergebnis-zeile">
+        <div>
+          <div class="goldankauf-preis-label">Ankaufpreis</div>
+          <div class="goldankauf-preis-wert" id="goldankauf-summe">—</div>
+        </div>
+        <button type="button" class="haendler-knopf" id="goldankauf-haendler-knopf"
+                aria-expanded="false" aria-controls="goldankauf-haendler-bereich"
+                aria-label="Händler-Bereich öffnen">
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="10" cy="10" r="4" fill="#d9705e"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="haendler-bereich" id="goldankauf-haendler-bereich" hidden>
+        <div class="field-hint" style="margin: 0 0 1.1rem;">
+          Aufschlag/Marge und die aktuellen Metallwerte für den Ankaufsabschlag —
+          später automatisch, vorerst von Hand eingetragen.
+        </div>
+        <div class="field">
+          <label for="ga-haendler-fix">Aufschlag (fest)</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-fix" placeholder="z. B. 5,00">
+            <span class="unit">€</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ga-haendler-prozent">Aufschlag (%)</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-prozent" placeholder="z. B. 3">
+            <span class="unit">%</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ga-haendler-gold">Gold</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-gold" placeholder="z. B. 78,40">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ga-haendler-palladium">Palladium</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-palladium" placeholder="z. B. 34,00">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ga-haendler-silber">Silber</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="ga-haendler-silber" placeholder="z. B. 0,92">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -1163,11 +1316,9 @@
   }
 
   // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
-  // "Materialwert" steht als eigenes Panel fest im HTML (Tageskurse) und
-  // fehlt hier deshalb bewusst.
+  // "Materialwert" und "Goldankauf" stehen als eigene Panels fest im HTML
+  // und fehlen hier deshalb bewusst.
   var kommende = [
-    { id: "goldankauf", tab: "Goldankauf",     titel: "Goldankauf",
-      text: "Ankaufspreis für Altgold: Gewicht, Feingehalt und Tagespreis abzüglich Ankaufsabschlag ergeben die Auszahlungssumme." },
     { id: "legierung", tab: "Legierung",       titel: "3 · Legierungsrechnung",
       text: "Wie viel Feingold und wie viel Zuschlag für x Gramm in y Karat. Dazu der umgekehrte Fall: vorhandenes Material hochlegieren oder abstrecken." },
     { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
@@ -2949,6 +3100,84 @@
   // allgemeine Tab-Umschaltung unverändert bleibt).
   document.querySelector('[data-tab="wert"]').addEventListener("click", zeigeKurse);
   kursRetry.addEventListener("click", zeigeKurse);
+
+  /* --- Goldankauf: Layout und Bedienung, noch ohne Rechenlogik ---------
+   *
+   * Reine Oberfläche für diesen Durchgang: beliebig viele Zeilen mit
+   * Legierung + Gewicht, ein Platzhalter-Ergebnis und ein aufklappbarer
+   * Händler-Bereich für Aufschlag und Metallwerte. Weder die Summe noch der
+   * Händlerabzug werden hier berechnet — das kommt erst, wenn Materialwert
+   * und Goldankauf gemeinsam an den Live-Kurs angebunden werden.
+   *
+   * Legierung nutzt einen einfachen Auswahl-Wheel wie das Feingehalt-Feld
+   * bei Materialwert (eine Kategorie lässt sich nicht sinnvoll "manuell"
+   * eintippen). Das Gewicht bekommt dagegen Wheel + manuelle Eingabe wie
+   * Innenumfang/Materialstärke beim Ringrechner, über dieselbe
+   * wireRadManuell()-Funktion — jede Zeile bekommt beim Erzeugen ihre
+   * eigene Verdrahtung mit durchgezählten IDs, weil beliebig viele Zeilen
+   * nebeneinander bestehen können.
+   */
+  var goldankaufZeilen = document.getElementById("goldankauf-zeilen");
+  var goldankaufZaehler = 0;
+
+  function neueGoldankaufZeile() {
+    var n = ++goldankaufZaehler;
+    var karte = document.createElement("div");
+    karte.className = "card goldankauf-zeile";
+    karte.innerHTML =
+      '<button type="button" class="zeile-entfernen" aria-label="Schmuckstück entfernen">×</button>' +
+      '<div class="field">' +
+        '<label for="ga-legierung-' + n + '">Legierung</label>' +
+        '<select class="wheel-select" id="ga-legierung-' + n + '">' +
+          '<option value="silber">Silber</option>' +
+          '<option value="gelbgold">Gelbgold</option>' +
+          '<option value="weissgold">Weißgold</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="field">' +
+        '<label id="ga-gewicht-label-' + n + '">Gewicht</label>' +
+        '<div class="field-row">' +
+          '<select class="wheel-select" id="ga-gewicht-wheel-' + n + '"></select>' +
+          '<div class="input-with-unit" id="ga-gewicht-manual-' + n + '" hidden>' +
+            '<input type="text" inputmode="decimal" enterkeyhint="done" id="ga-gewicht-' + n + '" placeholder="z. B. 12,5">' +
+            '<span class="unit">g</span>' +
+          '</div>' +
+          '<button type="button" class="mode-toggle" id="ga-gewicht-toggle-' + n + '">manuell</button>' +
+        '</div>' +
+      '</div>';
+
+    goldankaufZeilen.appendChild(karte);
+
+    wireRadManuell({
+      input: karte.querySelector("#ga-gewicht-" + n),
+      select: karte.querySelector("#ga-gewicht-wheel-" + n),
+      manualBox: karte.querySelector("#ga-gewicht-manual-" + n),
+      toggleBtn: karte.querySelector("#ga-gewicht-toggle-" + n),
+      min: 0.5, max: 30, schritt: 0.5,
+      einheit: "g",
+      start: 5
+    });
+
+    karte.querySelector(".zeile-entfernen").addEventListener("click", function () {
+      karte.remove();
+    });
+  }
+
+  document.getElementById("goldankauf-hinzufuegen").addEventListener("click", neueGoldankaufZeile);
+
+  // Erste Zeile steht sofort bereit, wie in der Spezifikation vorgesehen.
+  neueGoldankaufZeile();
+
+  // Händler-Bereich: schlichter Auf/Zu-Knopf, gleiche Anzeige-Logik wie beim
+  // Kursverlauf oben (hidden-Attribut + aria-expanded statt <details>, weil
+  // der Knopf selbst das Symbol ist und keinen Zusammenfassungstext trägt).
+  var haendlerKnopf = document.getElementById("goldankauf-haendler-knopf");
+  var haendlerBereich = document.getElementById("goldankauf-haendler-bereich");
+  haendlerKnopf.addEventListener("click", function () {
+    var offen = haendlerBereich.hidden;
+    haendlerBereich.hidden = !offen;
+    haendlerKnopf.setAttribute("aria-expanded", String(offen));
+  });
 })();
 </script>
 
