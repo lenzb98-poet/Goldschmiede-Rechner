@@ -1962,22 +1962,33 @@
     // liegen einstellig bis niedrige zweistellige Grad — weit darunter).
     var zeichenWinkel = Math.max(0, Math.min(alphaRad, 70 * Math.PI / 180));
 
-    // Hochformat statt breitem Kasten: die Linien laufen überwiegend
-    // senkrecht, ein breiter flacher Kasten ließe links und unten nur
-    // leeren Raum stehen. Die Länge L reicht fast bis zum oberen Rand,
-    // damit die Fläche wirklich ausgefüllt wird.
-    var vx = 168, vy = 204, L = 180;    // Scheitelpunkt unten rechts, Linienlänge
+    // Etwas höher als breit: die Linien laufen überwiegend senkrecht, ein
+    // flacher Kasten ließe links und unten nur leeren Raum stehen. Zu hoch
+    // darf die Skizze aber auch nicht werden, sonst schiebt sie das übrige
+    // Ergebnis auf dem Handy aus dem Bild.
+    var vx = 168, vy = 150, L = 130;    // Scheitelpunkt unten rechts, Linienlänge
     var topY = vy - L;
     var tx = vx - L * Math.sin(zeichenWinkel);
     var ty = vy - L * Math.cos(zeichenWinkel);
     var xLinks = 12;                    // linker Rand für die beiden Werkstück-Kanten
+
+    // Hauptergebnis sitzt im Feld zwischen den beiden Werkstück-Kanten statt
+    // darunter — die Schrägfläche macht dort genug Platz frei.
+    var zahlText = fmt(alphaGrad, 1);
+    var mitteY = (ty + vy) / 2;
+    var wertMitte = 64;
+    var wertGroesse = Math.max(16, Math.min(36, (vy - ty) * 0.26));
+    // Rechte Kante der Beschriftung überschlagen (Ziffernbreite ≈ 0,58 em,
+    // Gradzeichen kommt halb so groß dahinter). Reicht, um die Leitlinie
+    // erst hinter der Zahl beginnen zu lassen, statt quer durch sie hindurch.
+    var wertRechts = wertMitte + zahlText.length * wertGroesse * 0.29 + wertGroesse * 0.3;
 
     var bogen = "", leitlinie = "";
     if (alphaGrad > 0.05) {
       // Radius größer als eine rein geometrisch passende Kennzeichnung bräuchte:
       // bei kleinen Winkeln (die in der Werkstatt die Regel sind) wirkt ein knapper
       // Bogen sonst wie ein Strich statt wie eine Rundung.
-      var r = 46;                          // Radius des Winkelbogens
+      var r = 38;                          // Radius des Winkelbogens
       var ax = vx, ay = vy - r;             // Bogen-Start auf der Senkrechten
       var bx = vx - r * Math.sin(zeichenWinkel);
       var by = vy - r * Math.cos(zeichenWinkel);   // Bogen-Ende auf der Schräglinie
@@ -1993,16 +2004,12 @@
       var lr = r + 6;
       var lx = vx - lr * Math.sin(halb);
       var ly = vy - lr * Math.cos(halb);
-      leitlinie = '<line class="winkel-leitlinie" x1="70" y1="' + ((ty + vy) / 2).toFixed(2) + '" ' +
+      leitlinie = '<line class="winkel-leitlinie" x1="' + (wertRechts + 6).toFixed(2) + '" y1="' + mitteY.toFixed(2) + '" ' +
         'x2="' + lx.toFixed(2) + '" y2="' + ly.toFixed(2) + '" stroke-width="1.25"/>';
     }
 
-    // Hauptergebnis sitzt jetzt im Feld zwischen den beiden Werkstück-Kanten
-    // statt darunter — die Schrägfläche macht dort genug Platz frei.
-    var mitteY = (ty + vy) / 2;
-    var wertGroesse = Math.max(16, Math.min(36, (vy - ty) * 0.26));
-    var wert = '<text x="64" y="' + mitteY.toFixed(2) + '" text-anchor="middle" dominant-baseline="middle">' +
-      '<tspan class="winkel-wert" font-size="' + wertGroesse.toFixed(1) + '">' + fmt(alphaGrad, 1) + '</tspan>' +
+    var wert = '<text x="' + wertMitte + '" y="' + mitteY.toFixed(2) + '" text-anchor="middle" dominant-baseline="middle">' +
+      '<tspan class="winkel-wert" font-size="' + wertGroesse.toFixed(1) + '">' + zahlText + '</tspan>' +
       '<tspan class="winkel-einheit" font-size="' + (wertGroesse * 0.5).toFixed(1) + '">°</tspan>' +
     '</text>';
 
@@ -2031,7 +2038,7 @@
       xLinks + ',' + vy + '"/>';
 
     return '<div class="winkel-grafik">' +
-      '<svg class="winkel-svg" viewBox="0 0 200 220" role="img" ' +
+      '<svg class="winkel-svg" viewBox="0 0 200 166" role="img" ' +
            'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad von der Senkrechten">' +
         '<defs>' +
           '<linearGradient id="winkel-material" x1="0" y1="0" x2="0" y2="1">' +
