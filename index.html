@@ -253,13 +253,15 @@
   }
 
   /* --- Anschrägung: spaltenfüllende Winkel-Skizze oberhalb des Ergebnisses
-     Die Grafik nimmt die volle Kartenbreite ein und steht über dem
-     gewohnten .result-main-Block (Label + große Gradzahl) — der bleibt für
-     alle anderen Module unverändert, hier kommt nur der Grafik-Block davor.
-     Bezugslinie ist jetzt die Senkrechte (passend zum Text "von der
-     Senkrechten"): der Scheitelpunkt sitzt unten rechts, beide Linien
-     laufen von dort nach oben, die Schräglinie kippt um den Winkel zur
-     Seite. Ein kleiner Bogen mit der Gradzahl sitzt direkt am Scheitel. */
+     Die Grafik nimmt die volle Kartenbreite ein, der übrige .result-main-Block
+     (Label + Fußnote) bleibt für alle anderen Module unverändert. Bezugslinie
+     ist die Senkrechte (passend zum Text "von der Senkrechten"): der
+     Scheitelpunkt sitzt unten rechts, beide Linien laufen von dort nach oben,
+     die Schräglinie kippt um den Winkel zur Seite. Zwei waagerechte
+     Werkstück-Kanten (oben bis zur Schrägfläche, unten bis zum Scheitel)
+     zeigen das Ausgangsmaterial; im Feld dazwischen steht jetzt die große
+     Gradzahl (das bisherige .result-main .value), mit einer kurzen Leitlinie
+     zum Winkelbogen am Scheitel. */
   .winkel-grafik {
     padding: 1.1rem 1rem 0;
   }
@@ -267,9 +269,12 @@
   .winkel-svg { width: 100%; height: auto; display: block; }
 
   .winkel-svg .senkrechte { stroke: var(--border); }
+  .winkel-svg .werkstueck-kante { stroke: var(--border); }
   .winkel-svg .schraeglinie { stroke: var(--gold-dim); }
   .winkel-svg .winkel-bogen { stroke: var(--gold-dim); opacity: 0.85; }
-  .winkel-svg .winkel-label { fill: var(--text-dim); }
+  .winkel-svg .winkel-leitlinie { stroke: var(--text-dim); opacity: 0.6; }
+  .winkel-svg .winkel-wert { fill: var(--gold); font-weight: 700; }
+  .winkel-svg .winkel-einheit { fill: var(--gold-dim); }
 
   .result-grid {
     display: grid;
@@ -1957,8 +1962,9 @@
     var topY = vy - L;
     var tx = vx - L * Math.sin(zeichenWinkel);
     var ty = vy - L * Math.cos(zeichenWinkel);
+    var xLinks = 12;                    // linker Rand für die beiden Werkstück-Kanten
 
-    var bogen = "", label = "";
+    var bogen = "", leitlinie = "";
     if (alphaGrad > 0.05) {
       // Radius größer als eine rein geometrisch passende Kennzeichnung bräuchte:
       // bei kleinen Winkeln (die in der Werkstatt die Regel sind) wirkt ein knapper
@@ -1972,24 +1978,38 @@
         ' A ' + r + ' ' + r + ' 0 0 0 ' + bx.toFixed(2) + ' ' + by.toFixed(2) + '" ' +
         'fill="none" stroke-width="2"/>';
 
-      // Beschriftung auf der Winkelhalbierenden, knapp außerhalb des Bogens
+      // Kurze Leitlinie von der Gradzahl (jetzt im Werkstück-Feld) zum Bogen,
+      // damit klar bleibt, welcher Winkel gemeint ist, obwohl die Zahl daneben
+      // und nicht mehr direkt am Bogen steht.
       var halb = zeichenWinkel / 2;
-      var lr = r + 20;
+      var lr = r + 6;
       var lx = vx - lr * Math.sin(halb);
       var ly = vy - lr * Math.cos(halb);
-      label = '<text class="winkel-label" x="' + lx.toFixed(2) + '" y="' + ly.toFixed(2) + '" ' +
-        'text-anchor="middle" dominant-baseline="middle" font-size="13">' +
-        fmt(alphaGrad, 1) + '°</text>';
+      leitlinie = '<line class="winkel-leitlinie" x1="70" y1="' + ((ty + vy) / 2).toFixed(2) + '" ' +
+        'x2="' + lx.toFixed(2) + '" y2="' + ly.toFixed(2) + '" stroke-width="1.25"/>';
     }
+
+    // Hauptergebnis sitzt jetzt im Feld zwischen den beiden Werkstück-Kanten
+    // statt darunter — die Schrägfläche macht dort genug Platz frei.
+    var mitteY = (ty + vy) / 2;
+    var wertGroesse = Math.max(16, Math.min(36, (vy - ty) * 0.26));
+    var wert = '<text x="64" y="' + mitteY.toFixed(2) + '" text-anchor="middle" dominant-baseline="middle">' +
+      '<tspan class="winkel-wert" font-size="' + wertGroesse.toFixed(1) + '">' + fmt(alphaGrad, 1) + '</tspan>' +
+      '<tspan class="winkel-einheit" font-size="' + (wertGroesse * 0.5).toFixed(1) + '">°</tspan>' +
+    '</text>';
 
     return '<div class="winkel-grafik">' +
       '<svg class="winkel-svg" viewBox="0 0 200 220" role="img" ' +
            'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad von der Senkrechten">' +
+        '<line class="werkstueck-kante" x1="' + xLinks + '" y1="' + ty.toFixed(2) + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
+          'stroke-width="3" stroke-linecap="round"/>' +
+        '<line class="werkstueck-kante" x1="' + xLinks + '" y1="' + vy + '" x2="' + vx + '" y2="' + vy + '" ' +
+          'stroke-width="3" stroke-linecap="round"/>' +
         '<line class="senkrechte" x1="' + vx + '" y1="' + vy + '" x2="' + vx + '" y2="' + topY.toFixed(2) + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
         '<line class="schraeglinie" x1="' + vx + '" y1="' + vy + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
-        bogen + label +
+        bogen + leitlinie + wert +
       '</svg>' +
     '</div>';
   }
@@ -2016,7 +2036,6 @@
       winkelSkizze(alphaGrad) +
       '<div class="result-main">' +
         '<div class="label">Anschrägung je Stoßfläche</div>' +
-        '<div class="value">' + fmt(alphaGrad, 1) + '<span class="unit">°</span></div>' +
         '<div class="extra-note">von der Senkrechten · Innenkante zurücknehmen</div>' +
       '</div>' +
       '<div class="result-grid">' +
