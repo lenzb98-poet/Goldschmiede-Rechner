@@ -1010,6 +1010,70 @@
     padding-top: 1.2rem;
     border-top: 1px solid var(--border);
   }
+
+  .ga-kurs-stand {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text-dim);
+    margin: 1.2rem 0 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .ga-kurs-stand.fehler { color: var(--danger); }
+
+  /* --- Goldankauf: Aufschlüsselung der Rechenkette -------------------- */
+  .ga-auf {
+    margin-top: 1.1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .ga-auf-zeile {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    color: var(--text-dim);
+    padding: 0.12rem 0;
+  }
+
+  .ga-auf-zeile .ga-auf-wert {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ga-auf-unter {
+    padding-left: 0.9rem;
+    color: var(--gold-dim);
+  }
+
+  .ga-auf-summe {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .ga-auf-summe .ga-auf-wert,
+  .ga-auf-endpreis .ga-auf-wert { font-weight: 700; }
+
+  .ga-auf-endpreis {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .ga-auf-endpreis .ga-auf-wert { color: var(--gold); }
+
+  .ga-auf-hinweis {
+    margin-top: 0.7rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--danger);
+  }
 </style>
 </head>
 <body>
@@ -1324,24 +1388,43 @@
         </button>
       </div>
 
+      <div id="goldankauf-aufschluesselung"></div>
+
       <div class="haendler-bereich" id="goldankauf-haendler-bereich" hidden>
-        <div class="field-hint" style="margin: 0 0 1.1rem;">
-          Aufschlag/Marge und die aktuellen Metallwerte für den Ankaufsabschlag —
-          später automatisch, vorerst von Hand eingetragen.
-        </div>
         <div class="field">
-          <label for="ga-haendler-fix">Aufschlag (fest)</label>
+          <label for="ga-haendler-prozent">Ankauf zu</label>
           <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-fix" placeholder="z. B. 5,00">
-            <span class="unit">€</span>
-          </div>
-        </div>
-        <div class="field">
-          <label for="ga-haendler-prozent">Aufschlag (%)</label>
-          <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-prozent" placeholder="z. B. 3">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-prozent" placeholder="100">
             <span class="unit">%</span>
           </div>
+          <div class="field-hint">Anteil des Metallwerts, der ausgezahlt wird. Leer = 100 %.</div>
+        </div>
+        <div class="field">
+          <label for="ga-haendler-fix">Auf-/Abschlag</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-fix" placeholder="0,00">
+            <span class="unit">€</span>
+          </div>
+          <div class="field-hint">Kommt nach dem Prozentsatz dazu. Für einen Abzug mit Minus eintragen.</div>
+        </div>
+
+        <label class="check-row" for="ga-pd-aktiv">
+          <input type="checkbox" id="ga-pd-aktiv" checked>
+          <span>Palladium bei Weißgold vergüten</span>
+        </label>
+        <div class="field">
+          <label for="ga-pd-prozent">Palladiumanteil in Weißgold</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-pd-prozent" placeholder="19">
+            <span class="unit">%</span>
+          </div>
+          <div class="field-hint">Gilt für alle Weißgold-Zeilen. Leer = 19 %.</div>
+        </div>
+
+        <div class="ga-kurs-stand" id="ga-kurs-stand">Kurse werden abgefragt …</div>
+        <div class="field-hint" style="margin: 0 0 1.1rem;">
+          Ein von Hand eingetragener Kurs gilt vor dem abgefragten.
+          Feld leeren, um wieder den abgefragten Kurs zu verwenden.
         </div>
         <div class="field">
           <label for="ga-haendler-gold">Gold</label>
@@ -1364,6 +1447,7 @@
             <span class="unit">€/g</span>
           </div>
         </div>
+        <button type="button" class="kurs-retry" id="ga-kurs-retry">Kurse erneut abfragen</button>
       </div>
     </div>
   </section>
@@ -3235,17 +3319,20 @@
     // ist unabhängig, ein Wechsel in Zeile 2 darf Zeile 1 nicht berühren.
     legierungSelect.addEventListener("change", function () {
       fuelleGoldankaufFeingehalt(feingehaltSelect, legierungSelect.value);
+      berechneGoldankauf();
     });
+    feingehaltSelect.addEventListener("change", berechneGoldankauf);
+    zeile.querySelector(".ga-gramm").addEventListener("input", berechneGoldankauf);
 
     zeile.querySelector(".zeile-entfernen").addEventListener("click", function () {
       zeile.remove();
+      berechneGoldankauf();
     });
+
+    berechneGoldankauf();
   }
 
   document.getElementById("goldankauf-hinzufuegen").addEventListener("click", neueGoldankaufZeile);
-
-  // Erste Zeile steht sofort bereit, wie in der Spezifikation vorgesehen.
-  neueGoldankaufZeile();
 
   // Händler-Bereich: schlichter Auf/Zu-Knopf, gleiche Anzeige-Logik wie beim
   // Kursverlauf oben (hidden-Attribut + aria-expanded statt <details>, weil
@@ -3257,6 +3344,337 @@
     haendlerBereich.hidden = !offen;
     haendlerKnopf.setAttribute("aria-expanded", String(offen));
   });
+
+  /* --- Goldankauf: Kurse ---------------------------------------------
+   *
+   * Bewusst EIGENER Zustand statt Mitbenutzung von liveKurse/handKurse aus
+   * dem Materialwert-Modul: dieses setzt liveKurse[m] zu Beginn jeder
+   * Abfrage auf null zurück. Geteilte Felder hießen, dass eine
+   * fehlgeschlagene Abfrage im einen Reiter die Preise im anderen löscht.
+   * Die Abfrage selbst benutzt aber genau dieselben Bausteine wie oben
+   * (API_METALL, API_WECHSELKURS, versucheReihe, preisAus, UNZE_IN_GRAMM),
+   * es wird also dieselbe Quelle auf demselben Weg befragt.
+   *
+   * Neu gegenüber Materialwert ist allein Palladium (XPD) — das brauchen
+   * nur die Weißgold-Zeilen hier.
+   */
+  var GA_METALLE = ["XAU", "XPD", "XAG"];                 // Gold, Palladium, Silber
+  var GA_NAME = { XAU: "Gold", XPD: "Palladium", XAG: "Silber" };
+  var GA_FELD = { XAU: "ga-haendler-gold", XPD: "ga-haendler-palladium", XAG: "ga-haendler-silber" };
+  var GA_SPEICHER = "goldankauf-kurse-v1";
+
+  var gaLiveKurse = { XAU: null, XPD: null, XAG: null };  // abgefragt, EUR je Gramm
+  var gaHandKurse = { XAU: null, XPD: null, XAG: null };  // von Hand eingetragen
+  var gaStand = null;         // Zeitpunkt der Kurse in gaLiveKurse
+  var gaAusSpeicher = false;  // true = aus dem letzten Besuch, nicht frisch geholt
+  var gaKursLaeuft = false;
+
+  var gaKursStand = document.getElementById("ga-kurs-stand");
+  var gaKursRetry = document.getElementById("ga-kurs-retry");
+  var gaSumme = document.getElementById("goldankauf-summe");
+  var gaAufschluesselung = document.getElementById("goldankauf-aufschluesselung");
+  var gaProzentInput = document.getElementById("ga-haendler-prozent");
+  var gaFixInput = document.getElementById("ga-haendler-fix");
+  var gaPdAktivBox = document.getElementById("ga-pd-aktiv");
+  var gaPdProzentInput = document.getElementById("ga-pd-prozent");
+
+  var GA_PD_PROZENT_VORGABE = 19;   // üblicher Palladiumanteil in Weißgold
+  var GA_ANKAUF_VORGABE = 100;      // ohne Eintrag wird der volle Metallwert gezahlt
+  var GA_FIX_VORGABE = 0;
+
+  /* Merken für den Fall ohne Netz. Ohne diesen Speicher gäbe es beim ersten
+   * Start offline überhaupt keinen "zuletzt bekannten Wert" — die Forderung
+   * ließe sich also mit reinem Arbeitsspeicher nicht erfüllen. */
+  function gaSpeichereKurse() {
+    try {
+      localStorage.setItem(GA_SPEICHER, JSON.stringify({
+        kurse: gaLiveKurse,
+        stand: gaStand ? gaStand.toISOString() : null
+      }));
+    } catch (e) {
+      // Speicher gesperrt oder voll (privater Modus). Kein Grund, den
+      // Rechner anzuhalten — nur der Offline-Rückgriff entfällt dann.
+    }
+  }
+
+  function gaLadeKurseAusSpeicher() {
+    try {
+      var roh = localStorage.getItem(GA_SPEICHER);
+      if (!roh) return false;
+      var d = JSON.parse(roh);
+      if (!d || !d.kurse) return false;
+      var etwas = false;
+      GA_METALLE.forEach(function (m) {
+        var v = d.kurse[m];
+        if (typeof v === "number" && isFinite(v) && v > 0) { gaLiveKurse[m] = v; etwas = true; }
+      });
+      if (!etwas) return false;
+      gaStand = d.stand ? new Date(d.stand) : null;
+      gaAusSpeicher = true;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Handeingabe schlägt Abfrage — dasselbe Verhalten wie bei Materialwert.
+  function gaKurs(m) {
+    return gaHandKurse[m] != null ? gaHandKurse[m] : gaLiveKurse[m];
+  }
+
+  function gaStandText() {
+    if (!gaStand) return "";
+    return gaStand.toLocaleString("de-DE", {
+      day: "2-digit", month: "2-digit", year: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    }) + " Uhr";
+  }
+
+  function gaZeigeKursStand() {
+    var vorhanden = GA_METALLE.filter(function (m) { return gaLiveKurse[m] != null; }).length;
+    var vonHand = GA_METALLE.filter(function (m) { return gaHandKurse[m] != null; }).length;
+
+    var text, fehler = false;
+    if (vorhanden === 0) {
+      text = "Keine Kurse abrufbar.";
+      fehler = true;
+    } else if (gaAusSpeicher) {
+      // Genau der geforderte Fall: keine Verbindung, aber ein alter Stand da.
+      text = "Kein Netz — zuletzt bekannte Kurse vom " + gaStandText();
+      fehler = true;
+    } else {
+      text = "Kurse abgerufen: " + gaStandText();
+      if (vorhanden < GA_METALLE.length) text += " · nicht alle erreichbar";
+    }
+    if (vonHand > 0) {
+      text += " · " + (vonHand === GA_METALLE.length
+        ? "alle von Hand eingetragen"
+        : vonHand + " von Hand eingetragen");
+    }
+    gaKursStand.textContent = text;
+    gaKursStand.classList.toggle("fehler", fehler && vonHand < GA_METALLE.length);
+  }
+
+  function gaHoleKurse() {
+    if (gaKursLaeuft) return;
+    gaKursLaeuft = true;
+    gaKursRetry.disabled = true;
+
+    if (!echterUrsprung) {
+      gaKursLaeuft = false;
+      gaKursRetry.disabled = false;
+      gaKursStand.textContent = 'Die Seite läuft über "' + location.protocol +
+        '", nicht über http oder https; daraus blockieren Browser Abfragen an fremde ' +
+        "Server grundsätzlich. Kurse unten von Hand eintragen.";
+      gaKursStand.classList.add("fehler");
+      return;
+    }
+
+    // Wechselkurs und Metalle parallel und unabhängig — wie oben bei den
+    // Tageskursen, damit ein Ausfall einzeln benannt werden kann.
+    var abfragen = [versucheReihe(API_WECHSELKURS)].concat(
+      GA_METALLE.map(function (m) { return versucheReihe(API_METALL(m)); })
+    );
+
+    Promise.allSettled(abfragen).then(function (res) {
+      var fx = res[0];
+      var eurProUsd = null;
+      if (fx.status === "fulfilled") {
+        var r = fx.value && fx.value.rates && fx.value.rates.EUR;
+        if (typeof r === "number" && isFinite(r) && r > 0) eurProUsd = r;
+      }
+
+      var erfolge = 0;
+      res.slice(1).forEach(function (e, i) {
+        var m = GA_METALLE[i];
+        if (e.status !== "fulfilled" || eurProUsd == null) return;
+        try {
+          gaLiveKurse[m] = preisAus(e.value) * eurProUsd / UNZE_IN_GRAMM;
+          erfolge++;
+        } catch (err) {
+          // Format unerwartet: alten Wert stehen lassen statt auf null zu
+          // setzen — ein bekannter Kurs ist mehr wert als gar keiner.
+        }
+      });
+
+      if (erfolge > 0) {
+        gaStand = new Date();
+        gaAusSpeicher = false;
+        gaSpeichereKurse();
+      }
+      gaZeigeKursStand();
+      berechneGoldankauf();
+    }).finally(function () {
+      gaKursLaeuft = false;
+      gaKursRetry.disabled = false;
+    });
+  }
+
+  /* --- Goldankauf: die Rechenkette ------------------------------------
+   *
+   * Je Zeile (reiner Metallwert, ohne jeden Händleranteil):
+   *
+   *   Gelbgold und Weißgold
+   *     Feingoldanteil [g] = Gewicht [g] × Feingehalt/1000        (585 -> 0,585)
+   *     Zeilenwert [EUR]   = Feingoldanteil × Gold-Grammkurs
+   *
+   *   Silber
+   *     Zeilenwert [EUR]   = Gewicht × Feingehalt/1000 × Silber-Grammkurs
+   *
+   *   Weißgold zusätzlich, nur wenn "Palladium vergüten" angehakt ist:
+   *     Palladiumanteil [g] = Gewicht × Palladium-Prozent/100     (Vorgabe 19 %)
+   *     Zeilenwert += Palladiumanteil × Palladium-Grammkurs
+   *   Ist das Häkchen aus, wird Weißgold exakt wie Gelbgold gerechnet.
+   *
+   * Danach, in genau dieser Reihenfolge:
+   *
+   *   Metallwert = Summe aller Zeilenwerte
+   *   nach Satz  = Metallwert × (Ankauf-Prozent / 100)      ERST der Prozentsatz
+   *   Endpreis   = nach Satz + Auf-/Abschlag [EUR]          DANN der feste Betrag
+   *
+   * Der feste Betrag wird also NICHT mitprozentuiert. Beispiel: 100 EUR
+   * Metallwert, 80 % und +5 EUR ergeben 85,00 EUR — nicht 84,00 EUR.
+   */
+  function gaZahlOderVorgabe(roh, vorgabe) {
+    if (typeof roh !== "string" || roh.trim() === "") return vorgabe;
+    var v = parseDe(roh);
+    return isNaN(v) ? vorgabe : v;
+  }
+
+  function berechneGoldankauf() {
+    var zeilen = Array.prototype.slice.call(goldankaufZeilen.querySelectorAll(".ga-zeile"));
+    var pdAktiv = gaPdAktivBox.checked;
+    var pdProzent = gaZahlOderVorgabe(gaPdProzentInput.value, GA_PD_PROZENT_VORGABE);
+
+    var posten = [];       // Zeilen für die Aufschlüsselung
+    var metallwert = 0;
+    var fehlend = {};      // Symbole, deren Kurs für eine belegte Zeile fehlt
+    var mitGewicht = 0;
+
+    zeilen.forEach(function (zeile) {
+      var legierung = zeile.querySelector(".ga-legierung").value;
+      var feingehalt = parseFloat(zeile.querySelector(".ga-feingehalt").value);
+      var gewicht = parseDe(zeile.querySelector(".ga-gramm").value);
+      if (isNaN(gewicht) || gewicht <= 0 || isNaN(feingehalt)) return;
+      mitGewicht++;
+
+      var istSilber = legierung === "silber";
+      var basisMetall = istSilber ? "XAG" : "XAU";
+      var basisKurs = gaKurs(basisMetall);
+
+      // Feinanteil in Gramm: bei Silber wie bei Gold derselbe Dreisatz.
+      var feinGramm = gewicht * feingehalt / 1000;
+
+      if (basisKurs == null) {
+        fehlend[basisMetall] = true;
+        return;
+      }
+
+      var zeilenwert = feinGramm * basisKurs;
+      var eintrag = {
+        titel: (istSilber ? "Silber" : legierung === "weissgold" ? "Weißgold" : "Gold") +
+               " " + feingehalt + " · " + fmt(gewicht, 1) + " g",
+        rechnung: fmt(feinGramm, 3) + " g fein × " + fmt(basisKurs, basisKurs < 10 ? 3 : 2) + " €",
+        wert: zeilenwert,
+        pd: null
+      };
+
+      // Palladium-Zuschlag ausschließlich bei Weißgold und nur bei Häkchen.
+      if (legierung === "weissgold" && pdAktiv && pdProzent > 0) {
+        var pdKurs = gaKurs("XPD");
+        if (pdKurs == null) {
+          fehlend.XPD = true;
+        } else {
+          var pdGramm = gewicht * pdProzent / 100;
+          var pdWert = pdGramm * pdKurs;
+          zeilenwert += pdWert;
+          eintrag.wert = zeilenwert;
+          eintrag.pd = "+ Pd " + fmt(pdGramm, 3) + " g × " + fmt(pdKurs, 2) + " €";
+          eintrag.pdWert = pdWert;
+        }
+      }
+
+      metallwert += zeilenwert;
+      posten.push(eintrag);
+    });
+
+    var fehlendeListe = Object.keys(fehlend);
+
+    if (mitGewicht === 0) {
+      gaSumme.textContent = "—";
+      gaAufschluesselung.innerHTML =
+        '<div class="ga-auf"><div class="ga-auf-zeile">' +
+        '<span>Gewicht eintragen, um den Ankaufpreis zu sehen.</span></div></div>';
+      return;
+    }
+
+    // Fehlt ein nötiger Kurs, wird KEIN Preis gezeigt. Eine Summe, in der
+    // stillschweigend eine Position fehlt, wäre schlimmer als gar keine.
+    if (fehlendeListe.length) {
+      gaSumme.textContent = "—";
+      var namen = fehlendeListe.map(function (m) { return GA_NAME[m]; }).join(" und ");
+      gaAufschluesselung.innerHTML = '<div class="ga-auf"><div class="ga-auf-hinweis"></div></div>';
+      gaAufschluesselung.querySelector(".ga-auf-hinweis").textContent =
+        "Kein Kurs für " + namen + " — über den roten Punkt von Hand eintragen " +
+        "oder erneut abfragen.";
+      return;
+    }
+
+    var ankaufProzent = gaZahlOderVorgabe(gaProzentInput.value, GA_ANKAUF_VORGABE);
+    var fixBetrag = gaZahlOderVorgabe(gaFixInput.value, GA_FIX_VORGABE);
+
+    var nachSatz = metallwert * ankaufProzent / 100;   // erst der Prozentsatz
+    var endpreis = nachSatz + fixBetrag;               // dann der feste Betrag
+
+    gaSumme.textContent = fmt(endpreis, 2) + " €";
+
+    var html = '<div class="ga-auf">';
+    posten.forEach(function (p) {
+      html += '<div class="ga-auf-zeile"><span>' + p.titel + "  ·  " + p.rechnung +
+              '</span><span class="ga-auf-wert">' + fmt(p.wert - (p.pdWert || 0), 2) + ' €</span></div>';
+      if (p.pd) {
+        html += '<div class="ga-auf-zeile ga-auf-unter"><span>' + p.pd +
+                '</span><span class="ga-auf-wert">' + fmt(p.pdWert, 2) + ' €</span></div>';
+      }
+    });
+    html += '<div class="ga-auf-zeile ga-auf-summe"><span>Metallwert</span>' +
+            '<span class="ga-auf-wert">' + fmt(metallwert, 2) + ' €</span></div>';
+    html += '<div class="ga-auf-zeile"><span>× ' + fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) +
+            ' %</span><span class="ga-auf-wert">' + fmt(nachSatz, 2) + ' €</span></div>';
+    html += '<div class="ga-auf-zeile"><span>' + (fixBetrag < 0 ? "− " : "+ ") +
+            fmt(Math.abs(fixBetrag), 2) + ' €</span><span class="ga-auf-wert">' +
+            fmt(endpreis, 2) + ' €</span></div>';
+    html += '<div class="ga-auf-zeile ga-auf-endpreis"><span>Ankaufpreis</span>' +
+            '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>';
+    html += "</div>";
+    gaAufschluesselung.innerHTML = html;
+  }
+
+  // Handkurse: Feld gefüllt -> gilt vor dem abgefragten Kurs (wie Materialwert).
+  GA_METALLE.forEach(function (m) {
+    document.getElementById(GA_FELD[m]).addEventListener("input", function () {
+      var v = parseDe(this.value);
+      gaHandKurse[m] = (this.value.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
+      gaZeigeKursStand();
+      berechneGoldankauf();
+    });
+  });
+
+  [gaProzentInput, gaFixInput, gaPdProzentInput].forEach(function (el) {
+    el.addEventListener("input", berechneGoldankauf);
+  });
+  gaPdAktivBox.addEventListener("change", berechneGoldankauf);
+  gaKursRetry.addEventListener("click", gaHoleKurse);
+
+  // Erste Zeile steht sofort bereit, wie in der Spezifikation vorgesehen.
+  neueGoldankaufZeile();
+
+  // Beim Start: erst der gespeicherte Stand (damit offline sofort etwas
+  // dasteht), dann die Live-Abfrage, die ihn überschreibt sobald sie ankommt.
+  gaLadeKurseAusSpeicher();
+  gaZeigeKursStand();
+  berechneGoldankauf();
+  gaHoleKurse();
 })();
 </script>
 
