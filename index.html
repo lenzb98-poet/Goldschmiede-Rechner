@@ -255,15 +255,21 @@
   /* --- Anschrägung: spaltenfüllende Winkel-Skizze oberhalb des Ergebnisses
      Die Grafik nimmt die volle Kartenbreite ein und steht über dem
      gewohnten .result-main-Block (Label + große Gradzahl) — der bleibt für
-     alle anderen Module unverändert, hier kommt nur der Grafik-Block davor. */
+     alle anderen Module unverändert, hier kommt nur der Grafik-Block davor.
+     Bezugslinie ist jetzt die Senkrechte (passend zum Text "von der
+     Senkrechten"): der Scheitelpunkt sitzt unten rechts, beide Linien
+     laufen von dort nach oben, die Schräglinie kippt um den Winkel zur
+     Seite. Ein kleiner Bogen mit der Gradzahl sitzt direkt am Scheitel. */
   .winkel-grafik {
     padding: 1.1rem 1rem 0;
   }
 
   .winkel-svg { width: 100%; height: auto; display: block; }
 
-  .winkel-svg .grundlinie { stroke: var(--border); }
+  .winkel-svg .senkrechte { stroke: var(--border); }
   .winkel-svg .schraeglinie { stroke: var(--gold-dim); }
+  .winkel-svg .winkel-bogen { stroke: var(--gold-dim); opacity: 0.85; }
+  .winkel-svg .winkel-label { fill: var(--text-dim); }
 
   .result-grid {
     display: grid;
@@ -1924,34 +1930,66 @@
   var bevelCheckbox = document.getElementById("ring-bevel-on");
   var bevelCard = document.getElementById("ring-bevel");
 
-  // Spaltenfüllende Skizze: gemeinsamer Scheitelpunkt links, eine
-  // waagerechte Grundlinie und eine zweite Linie genau um alphaGrad dagegen
-  // verkippt. Bei 0° liegen beide Linien exakt aufeinander — eine flache
-  // Linie, wie gefordert. Die Gradzahl selbst steht im Ergebnis direkt
-  // darunter, nicht nochmal in der Grafik — sonst stünde derselbe Wert
-  // zweimal auf engem Raum.
+  // Spaltenfüllende Skizze: Scheitelpunkt unten rechts, eine Senkrechte
+  // (Bezug) läuft von dort nach oben, die Schräglinie kippt um alphaGrad zur
+  // Seite — passend zum Text "von der Senkrechten": bei kleinen Winkeln
+  // steht die Schräglinie fast aufrecht und weicht nur wenig ab, statt wie
+  // bei einer waagerechten Bezugslinie kaum sichtbar zu kippen. Ein kleiner
+  // Bogen mit der Gradzahl markiert den Winkel direkt am Scheitel. Bei 0°
+  // liegen beide Linien exakt aufeinander (eine einzige senkrechte Linie),
+  // dann bleibt auch der Bogen weg — ein Winkel von null lässt sich nicht
+  // sinnvoll einzeichnen.
   function winkelSkizze(alphaGrad) {
     var alphaRad = alphaGrad * Math.PI / 180;
     // Zeichenwinkel begrenzt: die Formel lässt bei sehr dickem Material im
     // Verhältnis zum Durchmesser (freie manuelle Eingabe) theoretisch weit
     // größere Winkel zu, als in der Werkstatt vorkommen. Die Zahl im
     // Ergebnis bleibt exakt; nur die Linie in der Skizze wird nicht steiler
-    // als 25° gezeichnet, damit sie in der jetzt breiten, flachen Fläche
-    // bleibt (übliche Anschrägungen liegen einstellig bis niedrige
-    // zweistellige Grad — weit darunter).
-    var zeichenWinkel = Math.max(0, Math.min(alphaRad, 25 * Math.PI / 180));
+    // als 70° gezeichnet, damit sie im Rahmen bleibt (übliche Anschrägungen
+    // liegen einstellig bis niedrige zweistellige Grad — weit darunter).
+    var zeichenWinkel = Math.max(0, Math.min(alphaRad, 70 * Math.PI / 180));
 
-    var vx = 12, vy = 122, L = 266;          // Scheitelpunkt links, Linienlänge
-    var tx = vx + L * Math.cos(zeichenWinkel);
-    var ty = vy - L * Math.sin(zeichenWinkel);   // SVG-y wächst nach unten
+    // Hochformat statt breitem Kasten: die Linien laufen überwiegend
+    // senkrecht, ein breiter flacher Kasten ließe links und unten nur
+    // leeren Raum stehen. Die Länge L reicht fast bis zum oberen Rand,
+    // damit die Fläche wirklich ausgefüllt wird.
+    var vx = 168, vy = 204, L = 180;    // Scheitelpunkt unten rechts, Linienlänge
+    var topY = vy - L;
+    var tx = vx - L * Math.sin(zeichenWinkel);
+    var ty = vy - L * Math.cos(zeichenWinkel);
+
+    var bogen = "", label = "";
+    if (alphaGrad > 0.05) {
+      // Radius größer als eine rein geometrisch passende Kennzeichnung bräuchte:
+      // bei kleinen Winkeln (die in der Werkstatt die Regel sind) wirkt ein knapper
+      // Bogen sonst wie ein Strich statt wie eine Rundung.
+      var r = 46;                          // Radius des Winkelbogens
+      var ax = vx, ay = vy - r;             // Bogen-Start auf der Senkrechten
+      var bx = vx - r * Math.sin(zeichenWinkel);
+      var by = vy - r * Math.cos(zeichenWinkel);   // Bogen-Ende auf der Schräglinie
+
+      bogen = '<path class="winkel-bogen" d="M ' + ax.toFixed(2) + ' ' + ay.toFixed(2) +
+        ' A ' + r + ' ' + r + ' 0 0 0 ' + bx.toFixed(2) + ' ' + by.toFixed(2) + '" ' +
+        'fill="none" stroke-width="2"/>';
+
+      // Beschriftung auf der Winkelhalbierenden, knapp außerhalb des Bogens
+      var halb = zeichenWinkel / 2;
+      var lr = r + 20;
+      var lx = vx - lr * Math.sin(halb);
+      var ly = vy - lr * Math.cos(halb);
+      label = '<text class="winkel-label" x="' + lx.toFixed(2) + '" y="' + ly.toFixed(2) + '" ' +
+        'text-anchor="middle" dominant-baseline="middle" font-size="13">' +
+        fmt(alphaGrad, 1) + '°</text>';
+    }
 
     return '<div class="winkel-grafik">' +
-      '<svg class="winkel-svg" viewBox="0 0 290 140" preserveAspectRatio="xMidYMax meet" role="img" ' +
-           'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad">' +
-        '<line class="grundlinie" x1="' + vx + '" y1="' + vy + '" x2="' + (vx + L) + '" y2="' + vy + '" ' +
+      '<svg class="winkel-svg" viewBox="0 0 200 220" role="img" ' +
+           'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad von der Senkrechten">' +
+        '<line class="senkrechte" x1="' + vx + '" y1="' + vy + '" x2="' + vx + '" y2="' + topY.toFixed(2) + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
         '<line class="schraeglinie" x1="' + vx + '" y1="' + vy + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
+        bogen + label +
       '</svg>' +
     '</div>';
   }
