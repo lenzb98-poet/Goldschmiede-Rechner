@@ -278,9 +278,10 @@
 
   .winkel-svg .senkrechte { stroke: var(--border); }
   .winkel-svg .werkstueck-kante { stroke: var(--border); }
-  /* Die Unterkante trägt das Werkstück optisch — etwas kräftiger als die
-     übrigen Begrenzungen, damit die Skizze unten einen klaren Abschluss hat. */
-  .winkel-svg .werkstueck-basis { stroke: var(--text-dim); opacity: 0.75; }
+  /* Die Unterkante trägt das Werkstück optisch. Alle Begrenzungen sind gleich
+     dünn wie die Schrägfläche — hervorgehoben wird sie deshalb allein über die
+     hellere Farbe, nicht über die Strichstärke. */
+  .winkel-svg .werkstueck-basis { stroke: var(--text-dim); }
   .winkel-svg .schraeglinie { stroke: var(--gold); }
   .winkel-svg .winkel-bogen { stroke: var(--gold-dim); opacity: 0.85; }
   .winkel-svg .winkel-leitlinie { stroke: var(--text-dim); opacity: 0.6; }
@@ -2051,11 +2052,11 @@
         '</defs>' +
         keil + koerper +
         '<line class="werkstueck-kante" x1="' + xLinks + '" y1="' + ty.toFixed(2) + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
-          'stroke-width="3" stroke-linecap="round"/>' +
+          'stroke-width="1.5" stroke-linecap="round"/>' +
         '<line class="werkstueck-kante werkstueck-basis" x1="' + xLinks + '" y1="' + vy + '" x2="' + vx + '" y2="' + vy + '" ' +
-          'stroke-width="4" stroke-linecap="round"/>' +
+          'stroke-width="1.5" stroke-linecap="round"/>' +
         '<line class="senkrechte" x1="' + vx + '" y1="' + vy + '" x2="' + vx + '" y2="' + topY.toFixed(2) + '" ' +
-          'stroke-width="2" stroke-linecap="round" stroke-dasharray="5 5"/>' +
+          'stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5 5"/>' +
         '<line class="schraeglinie" x1="' + vx + '" y1="' + vy + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
           'stroke-width="1.5" stroke-linecap="round"/>' +
         bogen + leitlinie + wert +
