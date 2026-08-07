@@ -3630,6 +3630,7 @@
     var gruppen = {};          // "gold|585" -> zusammengezogene Gramm
     var reihenfolge = [];      // Gruppen in der Reihenfolge ihres Auftauchens
     var fein = { XAU: 0, XPD: 0, XAG: 0 };   // zusammengezogene Feinmengen
+    var posten = [];           // jedes Schmuckstück einzeln, für die Endkosten
     var metallwert = 0;
     var fehlend = {};          // Symbole, deren Kurs für eine belegte Zeile fehlt
     var mitGewicht = 0;
@@ -3661,13 +3662,34 @@
       // --- ab hier die Wertrechnung ---
       var basisKurs = gaKurs(basisMetall);
       if (basisKurs == null) { fehlend[basisMetall] = true; return; }
-      metallwert += feinGramm * basisKurs;
+
+      var basisWert = feinGramm * basisKurs;
+      metallwert += basisWert;
+
+      // Jedes Schmuckstück bleibt eine eigene Position — bewusst NICHT nach
+      // Feingehalt zusammengezogen wie in der Übersicht oben: hier soll sich
+      // der Preis Stück für Stück nachverfolgen lassen.
+      var eintrag = {
+        titel: GA_LEG_NAME[legierung] + " " + feingehalt + " · " + fmt(gewicht, 1) + " g",
+        rechnung: fmt(feinGramm, 3) + " g fein × " + fmt(basisKurs, basisKurs < 10 ? 3 : 2) + " €",
+        wert: basisWert,
+        pd: null,
+        pdWert: 0
+      };
 
       if (pdGramm > 0) {
         var pdKurs = gaKurs("XPD");
-        if (pdKurs == null) fehlend.XPD = true;
-        else metallwert += pdGramm * pdKurs;
+        if (pdKurs == null) {
+          fehlend.XPD = true;
+        } else {
+          var pdWert = pdGramm * pdKurs;
+          metallwert += pdWert;
+          eintrag.pd = "+ Palladium " + fmt(pdGramm, 3) + " g × " + fmt(pdKurs, 2) + " €";
+          eintrag.pdWert = pdWert;
+        }
       }
+
+      posten.push(eintrag);
     });
 
     // ---------- immer sichtbar: die Übersicht ----------
@@ -3720,19 +3742,33 @@
 
     gaSumme.textContent = fmt(endpreis, 2) + " €";
 
-    gaEndkosten.innerHTML =
-      '<div class="ga-auf" style="margin-top:0;padding-top:0;border-top:none">' +
-        '<div class="ga-uebersicht-titel">So entsteht der Endpreis</div>' +
-        '<div class="ga-auf-zeile"><span>Metallwert</span>' +
-          '<span class="ga-auf-wert">' + fmt(metallwert, 2) + ' €</span></div>' +
-        '<div class="ga-auf-zeile"><span>× ' + fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) +
-          ' %</span><span class="ga-auf-wert">' + fmt(nachSatz, 2) + ' €</span></div>' +
-        '<div class="ga-auf-zeile"><span>' + (fixBetrag < 0 ? "− " : "+ ") +
-          fmt(Math.abs(fixBetrag), 2) + ' €</span><span class="ga-auf-wert">' +
-          fmt(endpreis, 2) + ' €</span></div>' +
-        '<div class="ga-auf-zeile ga-auf-endpreis"><span>Ankaufpreis</span>' +
-          '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
-      '</div>';
+    var ek = '<div class="ga-auf" style="margin-top:0;padding-top:0;border-top:none">' +
+      '<div class="ga-uebersicht-titel">So entsteht der Endpreis</div>';
+
+    // Erst jedes Schmuckstück einzeln mit seinem Preis …
+    posten.forEach(function (p) {
+      ek += '<div class="ga-auf-zeile"><span>' + p.titel + "  ·  " + p.rechnung +
+            '</span><span class="ga-auf-wert">' + fmt(p.wert, 2) + ' €</span></div>';
+      if (p.pd) {
+        ek += '<div class="ga-auf-zeile ga-auf-unter"><span>' + p.pd +
+              '</span><span class="ga-auf-wert">' + fmt(p.pdWert, 2) + ' €</span></div>';
+      }
+    });
+
+    // … dann deren Summe, und darunter erst die Händler-Schritte.
+    ek += '<div class="ga-auf-zeile ga-auf-summe"><span>Metallwert</span>' +
+            '<span class="ga-auf-wert">' + fmt(metallwert, 2) + ' €</span></div>' +
+          '<div class="ga-auf-zeile"><span>Ankauf zu ' +
+            fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) + ' %</span>' +
+            '<span class="ga-auf-wert">' + fmt(nachSatz, 2) + ' €</span></div>' +
+          '<div class="ga-auf-zeile"><span>' + (fixBetrag < 0 ? "Abschlag − " : "Aufschlag + ") +
+            fmt(Math.abs(fixBetrag), 2) + ' €</span><span class="ga-auf-wert">' +
+            fmt(endpreis, 2) + ' €</span></div>' +
+          '<div class="ga-auf-zeile ga-auf-endpreis"><span>Ankaufpreis</span>' +
+            '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
+          '</div>';
+
+    gaEndkosten.innerHTML = ek;
   }
 
   // Handkurse: Feld gefüllt -> gilt vor dem abgefragten Kurs (wie Materialwert).
