@@ -861,23 +861,85 @@
     word-break: break-word;
   }
 
-  /* --- Goldankauf: eine Karte je Schmuckstück ------------------------- */
-  .goldankauf-zeile {
-    position: relative;
-    padding-right: 3.2rem;   /* Platz für den Entfernen-Knopf oben rechts */
+  /* --- Goldankauf: Tabelle mit einer Zeile je Schmuckstück -------------
+     Schmale, feste Spalten statt einzelner Beschriftungsblöcke, damit
+     Legierung, Feingehalt und Gramm über alle Zeilen exakt untereinander
+     stehen — Excel-Spalten-Optik. Kopfzeile einmal oben, dann eine
+     Zeile pro Schmuckstück; Auswahlfelder und Eingabe bekommen dafür
+     eigene, kompaktere Maße statt der großen App-weiten Eingabefeld-Optik. */
+  .ga-tabelle { width: 100%; }
+
+  .ga-kopf,
+  .ga-zeile {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 0.85fr 1.8rem;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ga-kopf {
+    padding: 0 0.2rem 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+
+  .ga-kopf-gramm { text-align: right; padding-right: 0.3rem; }
+
+  .ga-zeile {
+    padding: 0.5rem 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ga-zeile:last-child { border-bottom: none; }
+
+  .ga-legierung,
+  .ga-feingehalt {
+    font-size: 0.95rem;
+    padding: 0.5rem 0.3rem;
+    border-radius: 0.5rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    min-width: 0;
+  }
+
+  .ga-legierung:focus,
+  .ga-feingehalt:focus,
+  input.ga-gramm:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  /* Als "input.ga-gramm" statt nur ".ga-gramm": die App-weite Regel
+     input[type="text"] (Zeile 202) hat dieselbe Spezifität wie eine reine
+     Klasse und stünde sonst je nach Reihenfolge im Weg — mit ihrem breiten
+     Rand für die Einheiten-Badge (padding-right: 4rem) und der großen
+     Schrift (1.8rem) schöbe sie die Eingabe in dieser schmalen Spalte
+     unsichtbar nach rechts hinaus. */
+  input.ga-gramm {
+    font-size: 0.95rem;
+    padding: 0.5rem 0.4rem;
+    border-radius: 0.5rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    text-align: right;
+    width: 100%;
+    min-width: 0;
+    -webkit-appearance: none;
   }
 
   .zeile-entfernen {
-    position: absolute;
-    top: 0.9rem;
-    right: 0.9rem;
-    width: 1.9rem;
-    height: 1.9rem;
+    width: 1.7rem;
+    height: 1.7rem;
     border-radius: 50%;
     border: 2px solid var(--border);
     background: var(--bg);
     color: var(--text-dim);
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -885,6 +947,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    justify-self: end;
   }
 
   .zeile-entfernen:active { border-color: var(--danger); color: var(--danger); }
@@ -892,7 +955,7 @@
   .add-zeile {
     display: block;
     width: 100%;
-    margin: 0 0 1rem;
+    margin: 1rem 0 0;
     background: var(--panel);
     color: var(--gold);
     border: 2px dashed var(--gold-dim);
@@ -1231,9 +1294,19 @@
   </section>
 
   <section class="panel" id="panel-goldankauf">
-    <div id="goldankauf-zeilen"></div>
+    <div class="card">
+      <div class="ga-tabelle">
+        <div class="ga-kopf">
+          <span>Legierung</span>
+          <span>Feingehalt</span>
+          <span class="ga-kopf-gramm">Gramm</span>
+          <span></span>
+        </div>
+        <div id="goldankauf-zeilen"></div>
+      </div>
 
-    <button type="button" class="add-zeile" id="goldankauf-hinzufuegen">+ Schmuckstück hinzufügen</button>
+      <button type="button" class="add-zeile" id="goldankauf-hinzufuegen">+ Schmuckstück hinzufügen</button>
+    </div>
 
     <div class="card">
       <div class="ergebnis-zeile">
@@ -3104,62 +3177,68 @@
   /* --- Goldankauf: Layout und Bedienung, noch ohne Rechenlogik ---------
    *
    * Reine Oberfläche für diesen Durchgang: beliebig viele Zeilen mit
-   * Legierung + Gewicht, ein Platzhalter-Ergebnis und ein aufklappbarer
-   * Händler-Bereich für Aufschlag und Metallwerte. Weder die Summe noch der
-   * Händlerabzug werden hier berechnet — das kommt erst, wenn Materialwert
-   * und Goldankauf gemeinsam an den Live-Kurs angebunden werden.
+   * Legierung, Feingehalt und Gewicht, ein Platzhalter-Ergebnis und ein
+   * aufklappbarer Händler-Bereich für Aufschlag und Metallwerte. Weder die
+   * Summe noch der Händlerabzug werden hier berechnet — das kommt erst,
+   * wenn Materialwert und Goldankauf gemeinsam an den Live-Kurs angebunden
+   * werden.
    *
-   * Legierung nutzt einen einfachen Auswahl-Wheel wie das Feingehalt-Feld
-   * bei Materialwert (eine Kategorie lässt sich nicht sinnvoll "manuell"
-   * eintippen). Das Gewicht bekommt dagegen Wheel + manuelle Eingabe wie
-   * Innenumfang/Materialstärke beim Ringrechner, über dieselbe
-   * wireRadManuell()-Funktion — jede Zeile bekommt beim Erzeugen ihre
-   * eigene Verdrahtung mit durchgezählten IDs, weil beliebig viele Zeilen
-   * nebeneinander bestehen können.
+   * Die Zeile ist bewusst als schmale Tabellenspalten gebaut (Legierung |
+   * Feingehalt | Gramm, rechtsbündig), nicht als große Beschriftungsblöcke
+   * wie sonst in der App — beim Erfassen mehrerer Schmuckstücke soll man
+   * die Spalten auf einen Blick vergleichen können, wie in einer
+   * Tabellenkalkulation. Legierung und Feingehalt bleiben Auswahlfelder
+   * (eine Kategorie tippt man nicht manuell ein); die Feingehalt-Liste
+   * kommt aus derselben FEINGEHALTE/FEIN_START-Tabelle wie bei
+   * Materialwert oben — Gold und Weißgold teilen sich die Feingold-Skala,
+   * nur die Legierungsfarbe unterscheidet sie, keine Feingehalts-Werte.
    */
+  var GA_FEIN_QUELLE = { gold: "XAU", weissgold: "XAU", silber: "XAG" };
+
+  function fuelleGoldankaufFeingehalt(select, legierung) {
+    var quelle = GA_FEIN_QUELLE[legierung];
+    select.innerHTML = "";
+    FEINGEHALTE[quelle].forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = String(w);
+      opt.textContent = String(w);   // ohne kt-Zusatz: Spalte soll schmal bleiben
+      select.appendChild(opt);
+    });
+    select.value = String(FEIN_START[quelle]);
+  }
+
   var goldankaufZeilen = document.getElementById("goldankauf-zeilen");
   var goldankaufZaehler = 0;
 
   function neueGoldankaufZeile() {
     var n = ++goldankaufZaehler;
-    var karte = document.createElement("div");
-    karte.className = "card goldankauf-zeile";
-    karte.innerHTML =
-      '<button type="button" class="zeile-entfernen" aria-label="Schmuckstück entfernen">×</button>' +
-      '<div class="field">' +
-        '<label for="ga-legierung-' + n + '">Legierung</label>' +
-        '<select class="wheel-select" id="ga-legierung-' + n + '">' +
-          '<option value="silber">Silber</option>' +
-          '<option value="gelbgold">Gelbgold</option>' +
-          '<option value="weissgold">Weißgold</option>' +
-        '</select>' +
-      '</div>' +
-      '<div class="field">' +
-        '<label id="ga-gewicht-label-' + n + '">Gewicht</label>' +
-        '<div class="field-row">' +
-          '<select class="wheel-select" id="ga-gewicht-wheel-' + n + '"></select>' +
-          '<div class="input-with-unit" id="ga-gewicht-manual-' + n + '" hidden>' +
-            '<input type="text" inputmode="decimal" enterkeyhint="done" id="ga-gewicht-' + n + '" placeholder="z. B. 12,5">' +
-            '<span class="unit">g</span>' +
-          '</div>' +
-          '<button type="button" class="mode-toggle" id="ga-gewicht-toggle-' + n + '">manuell</button>' +
-        '</div>' +
-      '</div>';
+    var zeile = document.createElement("div");
+    zeile.className = "ga-zeile";
+    zeile.innerHTML =
+      '<select class="ga-legierung" id="ga-legierung-' + n + '" aria-label="Legierung">' +
+        '<option value="gold" selected>Gold</option>' +
+        '<option value="weissgold">Weißgold</option>' +
+        '<option value="silber">Silber</option>' +
+      '</select>' +
+      '<select class="ga-feingehalt" id="ga-feingehalt-' + n + '" aria-label="Feingehalt"></select>' +
+      '<input type="text" inputmode="decimal" enterkeyhint="done" class="ga-gramm" ' +
+        'id="ga-gewicht-' + n + '" aria-label="Gramm" placeholder="0,0">' +
+      '<button type="button" class="zeile-entfernen" aria-label="Schmuckstück entfernen">×</button>';
 
-    goldankaufZeilen.appendChild(karte);
+    goldankaufZeilen.appendChild(zeile);
 
-    wireRadManuell({
-      input: karte.querySelector("#ga-gewicht-" + n),
-      select: karte.querySelector("#ga-gewicht-wheel-" + n),
-      manualBox: karte.querySelector("#ga-gewicht-manual-" + n),
-      toggleBtn: karte.querySelector("#ga-gewicht-toggle-" + n),
-      min: 0.5, max: 30, schritt: 0.5,
-      einheit: "g",
-      start: 5
+    var legierungSelect = zeile.querySelector(".ga-legierung");
+    var feingehaltSelect = zeile.querySelector(".ga-feingehalt");
+    fuelleGoldankaufFeingehalt(feingehaltSelect, legierungSelect.value);
+
+    // Feingehalt-Liste folgt der Legierung dieser einen Zeile — jede Zeile
+    // ist unabhängig, ein Wechsel in Zeile 2 darf Zeile 1 nicht berühren.
+    legierungSelect.addEventListener("change", function () {
+      fuelleGoldankaufFeingehalt(feingehaltSelect, legierungSelect.value);
     });
 
-    karte.querySelector(".zeile-entfernen").addEventListener("click", function () {
-      karte.remove();
+    zeile.querySelector(".zeile-entfernen").addEventListener("click", function () {
+      zeile.remove();
     });
   }
 
