@@ -252,6 +252,37 @@
     margin-left: 0.3rem;
   }
 
+  /* --- Anschrägung: kleine Winkel-Skizze direkt neben der Gradzahl -----
+     Nur die Zeile mit der großen Zahl wird zur Flex-Reihe, nicht der ganze
+     .result-main-Block (Label + Fußnote sind oft länger als die Zeile
+     breit ist und würden die Grafik sonst auf schmalen Telefonen nach
+     unten drücken). Der übrige .result-main-Stil bleibt für alle anderen
+     Module unverändert. */
+  .winkel-zeile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .winkel-svg-wrap {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .winkel-svg { width: 4.6rem; height: auto; display: block; }
+
+  .winkel-svg .grundlinie { stroke: var(--border); }
+  .winkel-svg .schraeglinie { stroke: var(--gold-dim); }
+
+  .winkel-grad {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
   .result-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1911,6 +1942,35 @@
   var bevelCheckbox = document.getElementById("ring-bevel-on");
   var bevelCard = document.getElementById("ring-bevel");
 
+  // Kleine Skizze: gemeinsamer Scheitelpunkt links, eine waagerechte
+  // Grundlinie und eine zweite Linie genau um alphaGrad dagegen verkippt.
+  // Bei 0° liegen beide Linien exakt aufeinander — eine flache Linie, wie
+  // gefordert.
+  function winkelSkizze(alphaGrad) {
+    var alphaRad = alphaGrad * Math.PI / 180;
+    // Zeichenwinkel begrenzt: die Formel lässt bei sehr dickem Material im
+    // Verhältnis zum Durchmesser (freie manuelle Eingabe) theoretisch weit
+    // größere Winkel zu, als in der Werkstatt vorkommen. Die Zahl daneben
+    // bleibt exakt; nur die Linie in der Skizze wird nicht steiler als 75°
+    // gezeichnet, damit sie im Rahmen bleibt.
+    var zeichenWinkel = Math.max(0, Math.min(alphaRad, 75 * Math.PI / 180));
+
+    var vx = 6, vy = 32, L = 32;             // Scheitelpunkt links, Linienlänge
+    var tx = vx + L * Math.cos(zeichenWinkel);
+    var ty = vy - L * Math.sin(zeichenWinkel);   // SVG-y wächst nach unten
+
+    return '<div class="winkel-svg-wrap">' +
+      '<svg class="winkel-svg" viewBox="0 0 44 38" role="img" ' +
+           'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad">' +
+        '<line class="grundlinie" x1="' + vx + '" y1="' + vy + '" x2="' + (vx + L) + '" y2="' + vy + '" ' +
+          'stroke-width="2" stroke-linecap="round"/>' +
+        '<line class="schraeglinie" x1="' + vx + '" y1="' + vy + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
+          'stroke-width="2" stroke-linecap="round"/>' +
+      '</svg>' +
+      '<div class="winkel-grad">' + fmt(alphaGrad, 1) + ' °</div>' +
+    '</div>';
+  }
+
   function zeigeAnschraegung() {
     if (!bevelCheckbox.checked) {
       bevelCard.hidden = true;
@@ -1932,7 +1992,10 @@
     bevelCard.innerHTML =
       '<div class="result-main">' +
         '<div class="label">Anschrägung je Stoßfläche</div>' +
-        '<div class="value">' + fmt(alphaGrad, 1) + '<span class="unit">°</span></div>' +
+        '<div class="winkel-zeile">' +
+          '<div class="value">' + fmt(alphaGrad, 1) + '<span class="unit">°</span></div>' +
+          winkelSkizze(alphaGrad) +
+        '</div>' +
         '<div class="extra-note">von der Senkrechten · Innenkante zurücknehmen</div>' +
       '</div>' +
       '<div class="result-grid">' +
