@@ -261,16 +261,24 @@
      Werkstück-Kanten (oben bis zur Schrägfläche, unten bis zum Scheitel)
      zeigen das Ausgangsmaterial; im Feld dazwischen steht jetzt die große
      Gradzahl (das bisherige .result-main .value), mit einer kurzen Leitlinie
-     zum Winkelbogen am Scheitel. */
+     zum Winkelbogen am Scheitel. Der Materialkörper ist gefüllt, der Keil
+     zwischen Schrägfläche und Senkrechter — also das weggefeilte Material —
+     bleibt blass und gestrichelt abgesetzt. */
   .winkel-grafik {
     padding: 1.1rem 1rem 0;
   }
 
   .winkel-svg { width: 100%; height: auto; display: block; }
 
+  /* Flächen zuerst, Linien darüber: der Materialkörper bekommt einen leichten
+     Verlauf, der wegzufeilende Keil bleibt deutlich blasser und gestrichelt. */
+  .winkel-svg .werkstueck-flaeche { fill: url(#winkel-material); }
+  .winkel-svg .abfall-keil { fill: var(--text-dim); opacity: 0.09; }
+  .winkel-svg .keil-kante { stroke: var(--border); stroke-dasharray: 4 4; }
+
   .winkel-svg .senkrechte { stroke: var(--border); }
   .winkel-svg .werkstueck-kante { stroke: var(--border); }
-  .winkel-svg .schraeglinie { stroke: var(--gold-dim); }
+  .winkel-svg .schraeglinie { stroke: var(--gold); }
   .winkel-svg .winkel-bogen { stroke: var(--gold-dim); opacity: 0.85; }
   .winkel-svg .winkel-leitlinie { stroke: var(--text-dim); opacity: 0.6; }
   .winkel-svg .winkel-wert { fill: var(--gold); font-weight: 700; }
@@ -1998,17 +2006,48 @@
       '<tspan class="winkel-einheit" font-size="' + (wertGroesse * 0.5).toFixed(1) + '">°</tspan>' +
     '</text>';
 
+    // Der Keil zwischen Schrägfläche und Senkrechter ist genau das Material,
+    // das beim Anschrägen weggefeilt wird. Ihn als abgesetzte Fläche mit
+    // gestrichelter Kante zu zeigen, macht aus der Winkelskizze ein Bild vom
+    // Werkstück: links bleibt das Material stehen, rechts kommt der Keil weg.
+    var keil = "";
+    if (alphaGrad > 0.05) {
+      keil =
+        '<polygon class="abfall-keil" points="' +
+          tx.toFixed(2) + ',' + ty.toFixed(2) + ' ' +
+          vx + ',' + ty.toFixed(2) + ' ' +
+          vx + ',' + vy + '"/>' +
+        '<line class="keil-kante" x1="' + tx.toFixed(2) + '" y1="' + ty.toFixed(2) + '" ' +
+          'x2="' + vx + '" y2="' + ty.toFixed(2) + '" stroke-width="1.5"/>';
+    }
+
+    // Materialkörper als gefüllte Fläche: erst dadurch liest sich die Skizze
+    // als Werkstück und nicht als vier lose Striche. Links läuft sie ohne
+    // Kante aus dem Bild — das Material geht dort weiter.
+    var koerper = '<polygon class="werkstueck-flaeche" points="' +
+      xLinks + ',' + ty.toFixed(2) + ' ' +
+      tx.toFixed(2) + ',' + ty.toFixed(2) + ' ' +
+      vx + ',' + vy + ' ' +
+      xLinks + ',' + vy + '"/>';
+
     return '<div class="winkel-grafik">' +
       '<svg class="winkel-svg" viewBox="0 0 200 220" role="img" ' +
            'aria-label="Winkel-Skizze: ' + fmt(alphaGrad, 1) + ' Grad von der Senkrechten">' +
+        '<defs>' +
+          '<linearGradient id="winkel-material" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#d4af37" stop-opacity="0.11"/>' +
+            '<stop offset="1" stop-color="#d4af37" stop-opacity="0.025"/>' +
+          '</linearGradient>' +
+        '</defs>' +
+        keil + koerper +
         '<line class="werkstueck-kante" x1="' + xLinks + '" y1="' + ty.toFixed(2) + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
         '<line class="werkstueck-kante" x1="' + xLinks + '" y1="' + vy + '" x2="' + vx + '" y2="' + vy + '" ' +
           'stroke-width="3" stroke-linecap="round"/>' +
         '<line class="senkrechte" x1="' + vx + '" y1="' + vy + '" x2="' + vx + '" y2="' + topY.toFixed(2) + '" ' +
-          'stroke-width="3" stroke-linecap="round"/>' +
+          'stroke-width="2" stroke-linecap="round" stroke-dasharray="5 5"/>' +
         '<line class="schraeglinie" x1="' + vx + '" y1="' + vy + '" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '" ' +
-          'stroke-width="3" stroke-linecap="round"/>' +
+          'stroke-width="3.5" stroke-linecap="round"/>' +
         bogen + leitlinie + wert +
       '</svg>' +
     '</div>';
