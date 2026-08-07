@@ -1074,6 +1074,41 @@
     line-height: 1.5;
     color: var(--danger);
   }
+
+  /* Übersicht bei geschlossenem Händler-Bereich: nur was eingelegt wurde,
+     nach Legierung und Feingehalt zusammengezogen — keine Preisrechnung. */
+  .ga-uebersicht-titel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--gold-dim);
+    margin-bottom: 0.45rem;
+  }
+
+  .ga-auf-zeile .ga-auf-gramm {
+    flex: 0 0 auto;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Endkosten stehen oben im Händler-Bereich, darunter erst die Stellschrauben */
+  #ga-endkosten:not(:empty) {
+    margin-bottom: 1.4rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Kleiner Live-Kurs unter dem jeweiligen Handeingabe-Feld */
+  .ga-kurs-info {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text-dim);
+    margin-top: 0.35rem;
+  }
+
+  .ga-kurs-info .ga-ueberschrieben {
+    color: var(--gold-dim);
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -1391,6 +1426,8 @@
       <div id="goldankauf-aufschluesselung"></div>
 
       <div class="haendler-bereich" id="goldankauf-haendler-bereich" hidden>
+        <div id="ga-endkosten"></div>
+
         <div class="field">
           <label for="ga-haendler-prozent">Ankauf zu</label>
           <div class="input-with-unit">
@@ -1429,23 +1466,26 @@
         <div class="field">
           <label for="ga-haendler-gold">Gold</label>
           <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-gold" placeholder="z. B. 78,40">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-gold" placeholder="—">
             <span class="unit">€/g</span>
           </div>
+          <div class="ga-kurs-info" id="ga-info-XAU"></div>
         </div>
         <div class="field">
           <label for="ga-haendler-palladium">Palladium</label>
           <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-palladium" placeholder="z. B. 34,00">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-palladium" placeholder="—">
             <span class="unit">€/g</span>
           </div>
+          <div class="ga-kurs-info" id="ga-info-XPD"></div>
         </div>
         <div class="field">
           <label for="ga-haendler-silber">Silber</label>
           <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="done" id="ga-haendler-silber" placeholder="z. B. 0,92">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="ga-haendler-silber" placeholder="—">
             <span class="unit">€/g</span>
           </div>
+          <div class="ga-kurs-info" id="ga-info-XAG"></div>
         </div>
         <button type="button" class="kurs-retry" id="ga-kurs-retry">Kurse erneut abfragen</button>
       </div>
@@ -3373,6 +3413,7 @@
   var gaKursRetry = document.getElementById("ga-kurs-retry");
   var gaSumme = document.getElementById("goldankauf-summe");
   var gaAufschluesselung = document.getElementById("goldankauf-aufschluesselung");
+  var gaEndkosten = document.getElementById("ga-endkosten");
   var gaProzentInput = document.getElementById("ga-haendler-prozent");
   var gaFixInput = document.getElementById("ga-haendler-fix");
   var gaPdAktivBox = document.getElementById("ga-pd-aktiv");
@@ -3428,6 +3469,32 @@
       day: "2-digit", month: "2-digit", year: "2-digit",
       hour: "2-digit", minute: "2-digit"
     }) + " Uhr";
+  }
+
+  /* Der abgefragte Kurs steht klein unter dem jeweiligen Eingabefeld und
+   * zusätzlich als Platzhalter IM Feld. Solange nichts eingetragen ist, sieht
+   * man dort also den Wert, mit dem gerechnet wird; sobald man tippt, ersetzt
+   * die eigene Zahl ihn sichtbar, und die Zeile darunter sagt ausdrücklich,
+   * dass der abgefragte Kurs jetzt überschrieben ist. */
+  function gaZeigeKursInfo() {
+    GA_METALLE.forEach(function (m) {
+      var feld = document.getElementById(GA_FELD[m]);
+      var info = document.getElementById("ga-info-" + m);
+      var live = gaLiveKurse[m];
+      var stellen = (live != null && live < 10) ? 3 : 2;
+
+      feld.placeholder = live == null ? "—" : fmt(live, stellen);
+
+      if (live == null) {
+        info.textContent = "Kein Kurs abrufbar — bitte von Hand eintragen.";
+      } else if (gaHandKurse[m] != null) {
+        info.innerHTML = "Abgefragt " + fmt(live, stellen) +
+          ' €/g · <span class="ga-ueberschrieben">von Hand überschrieben</span>';
+      } else {
+        info.textContent = (gaAusSpeicher ? "Zuletzt bekannt " : "Aktueller Kurs ") +
+          fmt(live, stellen) + " €/g";
+      }
+    });
   }
 
   function gaZeigeKursStand() {
@@ -3503,6 +3570,7 @@
         gaSpeichereKurse();
       }
       gaZeigeKursStand();
+      gaZeigeKursInfo();
       berechneGoldankauf();
     }).finally(function () {
       gaKursLaeuft = false;
@@ -3541,14 +3609,29 @@
     return isNaN(v) ? vorgabe : v;
   }
 
+  var GA_LEG_NAME = { gold: "Gold", weissgold: "Weißgold", silber: "Silber" };
+
+  /* Die Anzeige ist bewusst zweigeteilt:
+   *
+   *   Immer sichtbar (#goldankauf-aufschluesselung)
+   *     Was liegt auf dem Tisch — Gramm je Legierung und Feingehalt, dazu
+   *     die zusammengezogenen Feinmengen. Kein Preis, keine Rechnung.
+   *
+   *   Nur im geöffneten Händler-Bereich (#ga-endkosten)
+   *     Wie aus dem Metallwert der Endpreis wird. Das sind die Zahlen des
+   *     Händlers und gehen den Kunden nichts an, der auf den Bildschirm
+   *     schaut — deshalb hinter dem Knopf.
+   */
   function berechneGoldankauf() {
     var zeilen = Array.prototype.slice.call(goldankaufZeilen.querySelectorAll(".ga-zeile"));
     var pdAktiv = gaPdAktivBox.checked;
     var pdProzent = gaZahlOderVorgabe(gaPdProzentInput.value, GA_PD_PROZENT_VORGABE);
 
-    var posten = [];       // Zeilen für die Aufschlüsselung
+    var gruppen = {};          // "gold|585" -> zusammengezogene Gramm
+    var reihenfolge = [];      // Gruppen in der Reihenfolge ihres Auftauchens
+    var fein = { XAU: 0, XPD: 0, XAG: 0 };   // zusammengezogene Feinmengen
     var metallwert = 0;
-    var fehlend = {};      // Symbole, deren Kurs für eine belegte Zeile fehlt
+    var fehlend = {};          // Symbole, deren Kurs für eine belegte Zeile fehlt
     var mitGewicht = 0;
 
     zeilen.forEach(function (zeile) {
@@ -3560,66 +3643,75 @@
 
       var istSilber = legierung === "silber";
       var basisMetall = istSilber ? "XAG" : "XAU";
-      var basisKurs = gaKurs(basisMetall);
-
-      // Feinanteil in Gramm: bei Silber wie bei Gold derselbe Dreisatz.
       var feinGramm = gewicht * feingehalt / 1000;
+      var pdGramm = (legierung === "weissgold" && pdAktiv && pdProzent > 0)
+        ? gewicht * pdProzent / 100 : 0;
 
-      if (basisKurs == null) {
-        fehlend[basisMetall] = true;
-        return;
+      // Zusammenziehen passiert UNABHÄNGIG davon, ob ein Kurs vorliegt —
+      // die Übersicht soll auch ohne Netz zeigen, was eingelegt wurde.
+      var schluessel = legierung + "|" + feingehalt;
+      if (!gruppen[schluessel]) {
+        gruppen[schluessel] = { titel: GA_LEG_NAME[legierung] + " " + feingehalt, gramm: 0 };
+        reihenfolge.push(schluessel);
       }
+      gruppen[schluessel].gramm += gewicht;
+      fein[basisMetall] += feinGramm;
+      fein.XPD += pdGramm;
 
-      var zeilenwert = feinGramm * basisKurs;
-      var eintrag = {
-        titel: (istSilber ? "Silber" : legierung === "weissgold" ? "Weißgold" : "Gold") +
-               " " + feingehalt + " · " + fmt(gewicht, 1) + " g",
-        rechnung: fmt(feinGramm, 3) + " g fein × " + fmt(basisKurs, basisKurs < 10 ? 3 : 2) + " €",
-        wert: zeilenwert,
-        pd: null
-      };
+      // --- ab hier die Wertrechnung ---
+      var basisKurs = gaKurs(basisMetall);
+      if (basisKurs == null) { fehlend[basisMetall] = true; return; }
+      metallwert += feinGramm * basisKurs;
 
-      // Palladium-Zuschlag ausschließlich bei Weißgold und nur bei Häkchen.
-      if (legierung === "weissgold" && pdAktiv && pdProzent > 0) {
+      if (pdGramm > 0) {
         var pdKurs = gaKurs("XPD");
-        if (pdKurs == null) {
-          fehlend.XPD = true;
-        } else {
-          var pdGramm = gewicht * pdProzent / 100;
-          var pdWert = pdGramm * pdKurs;
-          zeilenwert += pdWert;
-          eintrag.wert = zeilenwert;
-          eintrag.pd = "+ Pd " + fmt(pdGramm, 3) + " g × " + fmt(pdKurs, 2) + " €";
-          eintrag.pdWert = pdWert;
-        }
+        if (pdKurs == null) fehlend.XPD = true;
+        else metallwert += pdGramm * pdKurs;
       }
-
-      metallwert += zeilenwert;
-      posten.push(eintrag);
     });
 
-    var fehlendeListe = Object.keys(fehlend);
-
+    // ---------- immer sichtbar: die Übersicht ----------
     if (mitGewicht === 0) {
       gaSumme.textContent = "—";
       gaAufschluesselung.innerHTML =
         '<div class="ga-auf"><div class="ga-auf-zeile">' +
         '<span>Gewicht eintragen, um den Ankaufpreis zu sehen.</span></div></div>';
+      gaEndkosten.innerHTML = "";
       return;
     }
+
+    var uebersicht = '<div class="ga-auf">' +
+      '<div class="ga-uebersicht-titel">Eingelegt</div>';
+    reihenfolge.forEach(function (s) {
+      uebersicht += '<div class="ga-auf-zeile"><span>' + gruppen[s].titel +
+                    '</span><span class="ga-auf-gramm">' + fmt(gruppen[s].gramm, 1) + ' g</span></div>';
+    });
+
+    uebersicht += '<div class="ga-uebersicht-titel" style="margin-top:0.8rem">Zusammengezogen</div>';
+    [["XAU", "Feingold"], ["XPD", "Palladium"], ["XAG", "Feinsilber"]].forEach(function (p) {
+      if (fein[p[0]] <= 0) return;
+      uebersicht += '<div class="ga-auf-zeile"><span>' + p[1] +
+                    '</span><span class="ga-auf-gramm">' + fmt(fein[p[0]], 3) + ' g</span></div>';
+    });
+
+    var fehlendeListe = Object.keys(fehlend);
+    if (fehlendeListe.length) {
+      var namen = fehlendeListe.map(function (m) { return GA_NAME[m]; }).join(" und ");
+      uebersicht += '<div class="ga-auf-hinweis">Kein Kurs für ' + namen +
+                    " — über den roten Punkt von Hand eintragen oder erneut abfragen.</div>";
+    }
+    uebersicht += "</div>";
+    gaAufschluesselung.innerHTML = uebersicht;
 
     // Fehlt ein nötiger Kurs, wird KEIN Preis gezeigt. Eine Summe, in der
     // stillschweigend eine Position fehlt, wäre schlimmer als gar keine.
     if (fehlendeListe.length) {
       gaSumme.textContent = "—";
-      var namen = fehlendeListe.map(function (m) { return GA_NAME[m]; }).join(" und ");
-      gaAufschluesselung.innerHTML = '<div class="ga-auf"><div class="ga-auf-hinweis"></div></div>';
-      gaAufschluesselung.querySelector(".ga-auf-hinweis").textContent =
-        "Kein Kurs für " + namen + " — über den roten Punkt von Hand eintragen " +
-        "oder erneut abfragen.";
+      gaEndkosten.innerHTML = "";
       return;
     }
 
+    // ---------- nur im Händler-Bereich: die Endkosten ----------
     var ankaufProzent = gaZahlOderVorgabe(gaProzentInput.value, GA_ANKAUF_VORGABE);
     var fixBetrag = gaZahlOderVorgabe(gaFixInput.value, GA_FIX_VORGABE);
 
@@ -3628,26 +3720,19 @@
 
     gaSumme.textContent = fmt(endpreis, 2) + " €";
 
-    var html = '<div class="ga-auf">';
-    posten.forEach(function (p) {
-      html += '<div class="ga-auf-zeile"><span>' + p.titel + "  ·  " + p.rechnung +
-              '</span><span class="ga-auf-wert">' + fmt(p.wert - (p.pdWert || 0), 2) + ' €</span></div>';
-      if (p.pd) {
-        html += '<div class="ga-auf-zeile ga-auf-unter"><span>' + p.pd +
-                '</span><span class="ga-auf-wert">' + fmt(p.pdWert, 2) + ' €</span></div>';
-      }
-    });
-    html += '<div class="ga-auf-zeile ga-auf-summe"><span>Metallwert</span>' +
-            '<span class="ga-auf-wert">' + fmt(metallwert, 2) + ' €</span></div>';
-    html += '<div class="ga-auf-zeile"><span>× ' + fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) +
-            ' %</span><span class="ga-auf-wert">' + fmt(nachSatz, 2) + ' €</span></div>';
-    html += '<div class="ga-auf-zeile"><span>' + (fixBetrag < 0 ? "− " : "+ ") +
-            fmt(Math.abs(fixBetrag), 2) + ' €</span><span class="ga-auf-wert">' +
-            fmt(endpreis, 2) + ' €</span></div>';
-    html += '<div class="ga-auf-zeile ga-auf-endpreis"><span>Ankaufpreis</span>' +
-            '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>';
-    html += "</div>";
-    gaAufschluesselung.innerHTML = html;
+    gaEndkosten.innerHTML =
+      '<div class="ga-auf" style="margin-top:0;padding-top:0;border-top:none">' +
+        '<div class="ga-uebersicht-titel">So entsteht der Endpreis</div>' +
+        '<div class="ga-auf-zeile"><span>Metallwert</span>' +
+          '<span class="ga-auf-wert">' + fmt(metallwert, 2) + ' €</span></div>' +
+        '<div class="ga-auf-zeile"><span>× ' + fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) +
+          ' %</span><span class="ga-auf-wert">' + fmt(nachSatz, 2) + ' €</span></div>' +
+        '<div class="ga-auf-zeile"><span>' + (fixBetrag < 0 ? "− " : "+ ") +
+          fmt(Math.abs(fixBetrag), 2) + ' €</span><span class="ga-auf-wert">' +
+          fmt(endpreis, 2) + ' €</span></div>' +
+        '<div class="ga-auf-zeile ga-auf-endpreis"><span>Ankaufpreis</span>' +
+          '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
+      '</div>';
   }
 
   // Handkurse: Feld gefüllt -> gilt vor dem abgefragten Kurs (wie Materialwert).
@@ -3656,6 +3741,7 @@
       var v = parseDe(this.value);
       gaHandKurse[m] = (this.value.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
       gaZeigeKursStand();
+      gaZeigeKursInfo();
       berechneGoldankauf();
     });
   });
@@ -3673,6 +3759,7 @@
   // dasteht), dann die Live-Abfrage, die ihn überschreibt sobald sie ankommt.
   gaLadeKurseAusSpeicher();
   gaZeigeKursStand();
+  gaZeigeKursInfo();
   berechneGoldankauf();
   gaHoleKurse();
 })();
