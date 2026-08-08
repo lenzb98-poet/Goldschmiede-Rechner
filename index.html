@@ -368,11 +368,17 @@
     margin-top: 0.35rem;
   }
 
-  /* Den Abstand nach unten trägt die Hülle der Blechmaße: "field:last-child"
-     setzt ihn in verschachtelten Blöcken sonst auf null und der Hinweis
-     klebte am Feingehalt darunter. */
+  /* Blechmaße: Länge und Breite als Paar nebeneinander, die Stärke darunter
+     über die volle Breite. Den Abstand nach unten tragen die Hüllen —
+     "field:last-child" setzt ihn in verschachtelten Blöcken sonst auf null
+     und der Hinweis klebte am Feingehalt darunter. */
+  .mass-paar { display: flex; gap: 0.5rem; margin-bottom: 1.1rem; }
+  .mass-paar .field { flex: 1; min-width: 0; margin-bottom: 0; }
   .blech-felder { margin-bottom: 1.1rem; }
   .blech-felder > .field:last-child { margin-bottom: 0; }
+  /* Die Räder füllen ihre Spalte, sonst schrumpfen sie auf die Breite des
+     längsten Eintrags und stehen ungleich nebeneinander. */
+  .blech-felder select.wheel-select { display: block; width: 100%; }
 
   .extra-note {
     font-size: 0.9rem;
@@ -1452,38 +1458,19 @@
       </div>
 
       <div class="blech-felder" id="wert-blech-felder" hidden>
-        <div class="field">
-          <label for="wert-blech-x">Länge</label>
-          <div class="field-row">
-            <select class="wheel-select" id="wert-blech-x-wheel"></select>
-            <div class="input-with-unit" id="wert-blech-x-manual" hidden>
-              <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-x" placeholder="z. B. 40">
-              <span class="unit">mm</span>
-            </div>
-            <button type="button" class="mode-toggle" id="wert-blech-x-toggle">manuell</button>
+        <div class="mass-paar">
+          <div class="field">
+            <label for="wert-blech-x">Länge</label>
+            <select class="wheel-select klein" id="wert-blech-x"></select>
           </div>
-        </div>
-        <div class="field">
-          <label for="wert-blech-y">Breite</label>
-          <div class="field-row">
-            <select class="wheel-select" id="wert-blech-y-wheel"></select>
-            <div class="input-with-unit" id="wert-blech-y-manual" hidden>
-              <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-y" placeholder="z. B. 25">
-              <span class="unit">mm</span>
-            </div>
-            <button type="button" class="mode-toggle" id="wert-blech-y-toggle">manuell</button>
+          <div class="field">
+            <label for="wert-blech-y">Breite</label>
+            <select class="wheel-select klein" id="wert-blech-y"></select>
           </div>
         </div>
         <div class="field">
           <label for="wert-blech-s">Stärke</label>
-          <div class="field-row">
-            <select class="wheel-select" id="wert-blech-s-wheel"></select>
-            <div class="input-with-unit" id="wert-blech-s-manual" hidden>
-              <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-blech-s" placeholder="z. B. 1,2">
-              <span class="unit">mm</span>
-            </div>
-            <button type="button" class="mode-toggle" id="wert-blech-s-toggle">manuell</button>
-          </div>
+          <select class="wheel-select klein" id="wert-blech-s"></select>
           <div class="field-hint">Gewicht wird über das Volumen und die Dichte der Legierung gerechnet.</div>
         </div>
       </div>
@@ -3529,37 +3516,17 @@
    * einen Weg kennt. */
   function wertGewichtErmitteln(promille) {
     if (wertMode === "blech") {
-      var felder = [
-        { el: wertBlechX, name: "Länge" },
-        { el: wertBlechY, name: "Breite" },
-        { el: wertBlechS, name: "Stärke" }
-      ];
-      var leer = felder.filter(function (f) { return f.el.value.trim() === ""; });
-      if (leer.length === felder.length) {
-        return { meldung: '<div class="placeholder">Maße des Blechs eingeben, um den Wert zu sehen.</div>' };
-      }
-      if (leer.length) {
-        return { meldung: '<div class="placeholder">Fehlt noch: ' +
-          leer.map(function (f) { return f.name; }).join(", ") + '.</div>' };
-      }
-      var masse = [];
-      for (var i = 0; i < felder.length; i++) {
-        var v = parseDe(felder[i].el.value);
-        if (isNaN(v)) {
-          return { meldung: '<div class="hint">Bitte für ' + felder[i].name +
-            ' eine gültige Zahl eingeben.</div>' };
-        }
-        if (v <= 0) {
-          return { meldung: '<div class="hint">Bitte für ' + felder[i].name +
-            ' einen Wert größer als 0 eingeben.</div>' };
-        }
-        masse.push(v);
-      }
+      // Die Maße kommen aus Auswahlrädern, nicht aus Textfeldern: es steht
+      // immer ein gültiger Wert darin, leer oder unlesbar kann hier nichts
+      // sein. Deshalb auch keine Prüfungen — die gäbe es nur zum Schein.
+      var x = parseFloat(wertBlechX.value);
+      var y = parseFloat(wertBlechY.value);
+      var s = parseFloat(wertBlechS.value);
       // Kantenlängen in mm, Volumen soll in cm³ herauskommen: 1 cm³ = 1000 mm³
-      var volumen = masse[0] * masse[1] * masse[2] / 1000;
+      var volumen = x * y * s / 1000;
       var dichte = DICHTE[wertMetall][promille];
       return { gewicht: volumen * dichte, volumen: volumen, dichte: dichte,
-               x: masse[0], y: masse[1], s: masse[2] };
+               x: x, y: y, s: s };
     }
 
     var roh = wertGewicht.value;
@@ -3685,38 +3652,28 @@
 
   wertGewicht.addEventListener("input", berechneMaterialwert);
   [wertBlechX, wertBlechY, wertBlechS].forEach(function (el) {
-    el.addEventListener("input", berechneMaterialwert);
+    el.addEventListener("change", berechneMaterialwert);
   });
   wertFein.addEventListener("change", berechneMaterialwert);
 
-  /* Blechmaße über dieselbe Rad-Bedienung wie im Ringrechner: das Rad ist der
-   * Grundzustand, der Knopf daneben schaltet auf Tippen um. Die Räder decken
-   * ab, was in der Werkstatt an Blech durch die Hand geht; der manuelle Weg
-   * bleibt für alles darüber (ein 150-mm-Streifen etwa) offen, sonst wäre die
-   * Liste eine Obergrenze statt einer Hilfe.
-   * Beide Bedienarten schreiben in dasselbe Eingabefeld und lösen dessen
-   * "input"-Ereignis aus — berechneMaterialwert() liest unverändert von dort. */
-  wireRadManuell({
-    input: wertBlechX,
-    select: document.getElementById("wert-blech-x-wheel"),
-    manualBox: document.getElementById("wert-blech-x-manual"),
-    toggleBtn: document.getElementById("wert-blech-x-toggle"),
-    min: 1, max: 100, schritt: 1, einheit: "mm", start: 50
-  });
-  wireRadManuell({
-    input: wertBlechY,
-    select: document.getElementById("wert-blech-y-wheel"),
-    manualBox: document.getElementById("wert-blech-y-manual"),
-    toggleBtn: document.getElementById("wert-blech-y-toggle"),
-    min: 1, max: 100, schritt: 1, einheit: "mm", start: 25
-  });
-  wireRadManuell({
-    input: wertBlechS,
-    select: document.getElementById("wert-blech-s-wheel"),
-    manualBox: document.getElementById("wert-blech-s-manual"),
-    toggleBtn: document.getElementById("wert-blech-s-toggle"),
-    min: 1, max: 5, schritt: 0.1, einheit: "mm", start: 1
-  });
+  /* Blechmaße nur als Auswahlrad — beim Blech greift man zu den Maßen, die
+   * das Rasterband hergibt, eine freie Zahl braucht es hier nicht.
+   * radWerte() liefert die Stufen ohne Fließkomma-Rundungsfehler; dieselbe
+   * Funktion baut schon die Räder im Ringrechner. */
+  function fuelleMassRad(select, min, max, schritt, start) {
+    var info = radWerte(min, max, schritt);
+    info.werte.forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = String(w);
+      opt.textContent = fmt(w, info.nachkomma) + " mm";
+      select.appendChild(opt);
+    });
+    select.value = String(start);
+  }
+
+  fuelleMassRad(wertBlechX, 1, 100, 1, 50);
+  fuelleMassRad(wertBlechY, 1, 100, 1, 25);
+  fuelleMassRad(wertBlechS, 1, 5, 0.1, 1);
 
   fuelleFeingehalte(wertMetall);
 
