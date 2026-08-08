@@ -361,11 +361,21 @@
 
   .advanced[open] summary { margin-bottom: 1.1rem; }
 
-  .advanced .field-hint {
+  .advanced .field-hint,
+  .field-hint {
     font-size: 0.85rem;
     color: var(--text-dim);
     margin-top: 0.35rem;
   }
+
+  /* Blechmaße: Länge und Breite gehören als Paar nebeneinander, sonst
+     scrollt die Karte auf dem Handy unnötig weit. Den Abstand nach unten
+     tragen hier die Hüllen — "field:last-child" setzt ihn in verschachtelten
+     Blöcken sonst auf null und der Hinweis klebt am nächsten Feld. */
+  .mass-paar { display: flex; gap: 0.5rem; margin-bottom: 1.1rem; }
+  .mass-paar .field { flex: 1; min-width: 0; margin-bottom: 0; }
+  .blech-felder { margin-bottom: 1.1rem; }
+  .blech-felder > .field:last-child { margin-bottom: 0; }
 
   .extra-note {
     font-size: 0.9rem;
@@ -1410,10 +1420,45 @@
       </div>
 
       <div class="field">
+        <label>Eingabe als</label>
+        <div class="segmented" id="wert-mode">
+          <button type="button" data-mode="gewicht" class="active">Gewicht</button>
+          <button type="button" data-mode="blech">Blech</button>
+        </div>
+      </div>
+
+      <div class="field" id="wert-gewicht-feld">
         <label for="wert-gewicht">Gewicht</label>
         <div class="input-with-unit">
           <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-gewicht" placeholder="z. B. 12,5">
           <span class="unit">g</span>
+        </div>
+      </div>
+
+      <div class="blech-felder" id="wert-blech-felder" hidden>
+        <div class="mass-paar">
+          <div class="field">
+            <label for="wert-blech-x">Länge</label>
+            <div class="input-with-unit">
+              <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-x" placeholder="z. B. 40">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="wert-blech-y">Breite</label>
+            <div class="input-with-unit">
+              <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-y" placeholder="z. B. 25">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="wert-blech-s">Stärke</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-blech-s" placeholder="z. B. 1,2">
+            <span class="unit">mm</span>
+          </div>
+          <div class="field-hint">Gewicht wird über das Volumen und die Dichte der Legierung gerechnet.</div>
         </div>
       </div>
 
@@ -3366,11 +3411,39 @@
   var FEIN_START = { XAG: 925, XAU: 585, XPT: 950 };   // gängigster Stempel je Metall
   var FEIN_NAME  = { XAG: "Feinsilber", XAU: "Feingold", XPT: "Feinplatin" };
 
+  /* Dichte je Legierung in g/cm³ — nötig, um aus Blechmaßen ein Gewicht zu
+   * bekommen:
+   *
+   *   Volumen [cm³] = X [mm] · Y [mm] · Stärke [mm] / 1000
+   *   Gewicht [g]   = Volumen [cm³] · Dichte [g/cm³]
+   *
+   * Die Werte gelten für die üblichen Legierungen (Gold gelb, Silber und
+   * Platin in den gängigen Zusammensetzungen). Die Dichte hängt aber am
+   * Zusatzmetall, nicht nur am Feingehalt: Weißgold 585 liegt mit rund
+   * 14,5 spürbar über den 13,1 von Gelbgold 585. Das Ergebnis ist damit
+   * ein guter Anhaltspunkt, ersetzt aber das Wiegen nicht — worauf der
+   * Hinweis unter dem Ergebnis auch aufmerksam macht.
+   */
+  var DICHTE = {
+    XAG: { 800: 10.10, 835: 10.20, 925: 10.36, 999: 10.49 },
+    XAU: { 333: 11.50, 375: 11.90, 585: 13.10, 750: 15.45,
+           900: 17.30, 916: 17.60, 999: 19.32 },
+    XPT: { 585: 16.30, 800: 18.70, 900: 20.10, 950: 20.70, 999: 21.45 }
+  };
+
   var wertMetall = "XAU";
   var wertMetallTasten = document.querySelectorAll("#wert-metall button");
   var wertGewicht = document.getElementById("wert-gewicht");
   var wertFein = document.getElementById("wert-feingehalt");
   var wertErgebnis = document.getElementById("wert-ergebnis");
+
+  var wertMode = "gewicht";
+  var wertModeTasten = document.querySelectorAll("#wert-mode button");
+  var wertGewichtFeld = document.getElementById("wert-gewicht-feld");
+  var wertBlechFelder = document.getElementById("wert-blech-felder");
+  var wertBlechX = document.getElementById("wert-blech-x");
+  var wertBlechY = document.getElementById("wert-blech-y");
+  var wertBlechS = document.getElementById("wert-blech-s");
 
   function fuelleFeingehalte(metall) {
     wertFein.innerHTML = "";
@@ -3388,47 +3461,115 @@
     wertFein.value = String(FEIN_START[metall]);
   }
 
-  function berechneMaterialwert() {
-    var preis = aktuellerPreis(wertMetall);
-    var roh = wertGewicht.value;
-
-    if (roh.trim() === "") {
-      wertErgebnis.innerHTML = '<div class="placeholder">Gewicht eingeben, um den Wert zu sehen.</div>';
-      return;
+  /* Liefert das Gewicht in Gramm — entweder direkt eingetippt oder über das
+   * Blechvolumen gerechnet. Statt eines Fehlerwerts kommt bei unvollständiger
+   * oder unbrauchbarer Eingabe die fertige Meldung zurück, damit beide
+   * Eingabearten dieselben Texte benutzen und der Rechner darunter nur noch
+   * einen Weg kennt. */
+  function wertGewichtErmitteln(promille) {
+    if (wertMode === "blech") {
+      var felder = [
+        { el: wertBlechX, name: "Länge" },
+        { el: wertBlechY, name: "Breite" },
+        { el: wertBlechS, name: "Stärke" }
+      ];
+      var leer = felder.filter(function (f) { return f.el.value.trim() === ""; });
+      if (leer.length === felder.length) {
+        return { meldung: '<div class="placeholder">Maße des Blechs eingeben, um den Wert zu sehen.</div>' };
+      }
+      if (leer.length) {
+        return { meldung: '<div class="placeholder">Fehlt noch: ' +
+          leer.map(function (f) { return f.name; }).join(", ") + '.</div>' };
+      }
+      var masse = [];
+      for (var i = 0; i < felder.length; i++) {
+        var v = parseDe(felder[i].el.value);
+        if (isNaN(v)) {
+          return { meldung: '<div class="hint">Bitte für ' + felder[i].name +
+            ' eine gültige Zahl eingeben.</div>' };
+        }
+        if (v <= 0) {
+          return { meldung: '<div class="hint">Bitte für ' + felder[i].name +
+            ' einen Wert größer als 0 eingeben.</div>' };
+        }
+        masse.push(v);
+      }
+      // Kantenlängen in mm, Volumen soll in cm³ herauskommen: 1 cm³ = 1000 mm³
+      var volumen = masse[0] * masse[1] * masse[2] / 1000;
+      var dichte = DICHTE[wertMetall][promille];
+      return { gewicht: volumen * dichte, volumen: volumen, dichte: dichte,
+               x: masse[0], y: masse[1], s: masse[2] };
     }
 
+    var roh = wertGewicht.value;
+    if (roh.trim() === "") {
+      return { meldung: '<div class="placeholder">Gewicht eingeben, um den Wert zu sehen.</div>' };
+    }
     var gewicht = parseDe(roh);
     if (isNaN(gewicht)) {
-      wertErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
-      return;
+      return { meldung: '<div class="hint">Bitte eine gültige Zahl eingeben.</div>' };
     }
     if (gewicht <= 0) {
-      wertErgebnis.innerHTML = '<div class="hint">Bitte ein Gewicht größer als 0 eingeben.</div>';
+      return { meldung: '<div class="hint">Bitte ein Gewicht größer als 0 eingeben.</div>' };
+    }
+    return { gewicht: gewicht };
+  }
+
+  function berechneMaterialwert() {
+    var promille = parseFloat(wertFein.value);
+    var quelle = wertGewichtErmitteln(promille);
+    if (quelle.meldung) {
+      wertErgebnis.innerHTML = quelle.meldung;
       return;
     }
+
+    var preis = aktuellerPreis(wertMetall);
     if (preis == null) {
       wertErgebnis.innerHTML = '<div class="hint">Für ' + NAME[wertMetall] +
         ' liegt kein Kurs vor — oben abfragen oder von Hand eintragen.</div>';
       return;
     }
 
-    var promille = parseFloat(wertFein.value);
+    var gewicht = quelle.gewicht;
     var feingewicht = gewicht * promille / 1000;
     var wert = feingewicht * preis;
+    var istBlech = quelle.volumen != null;
+
+    var rechenweg = istBlech
+      ? fmt(quelle.x, 1) + ' × ' + fmt(quelle.y, 1) + ' × ' + fmt(quelle.s, 2) +
+        ' mm · ' + fmt(quelle.dichte, 2) + ' g/cm³'
+      : fmt(gewicht, 2) + ' g × ' + promille + ' ‰ × ' +
+        fmt(preis, preis < 10 ? 3 : 2) + ' € je g';
+
+    var kacheln =
+      '<div class="result-item"><div class="label">' + FEIN_NAME[wertMetall] + '</div>' +
+        '<div class="value">' + fmt(feingewicht, 2) + ' g</div></div>' +
+      '<div class="result-item"><div class="label">Kurs je g ' + FEIN_NAME[wertMetall] + '</div>' +
+        '<div class="value">' + fmt(preis, preis < 10 ? 3 : 2) + ' €</div></div>';
+
+    // Beim Blech gehen Gewicht und Volumen voran: das Gewicht ist hier ja
+    // gerechnet und nicht eingegeben, also selbst ein Ergebnis.
+    if (istBlech) {
+      kacheln =
+        '<div class="result-item"><div class="label">Gewicht</div>' +
+          '<div class="value">' + fmt(gewicht, 2) + ' g</div></div>' +
+        '<div class="result-item"><div class="label">Volumen</div>' +
+          '<div class="value">' + fmt(quelle.volumen, 3) + ' cm³</div></div>' +
+        kacheln;
+    }
 
     wertErgebnis.innerHTML =
       '<div class="result-main">' +
         '<div class="label">Materialwert</div>' +
         '<div class="value">' + fmt(wert, 2) + '<span class="unit">€</span></div>' +
-        '<div class="extra-note">' + fmt(gewicht, 2) + ' g × ' + promille + ' ‰ × ' +
-          fmt(preis, preis < 10 ? 3 : 2) + ' € je g</div>' +
+        '<div class="extra-note">' + rechenweg + '</div>' +
       '</div>' +
-      '<div class="result-grid">' +
-        '<div class="result-item"><div class="label">' + FEIN_NAME[wertMetall] + '</div>' +
-          '<div class="value">' + fmt(feingewicht, 2) + ' g</div></div>' +
-        '<div class="result-item"><div class="label">Kurs je g ' + FEIN_NAME[wertMetall] + '</div>' +
-          '<div class="value">' + fmt(preis, preis < 10 ? 3 : 2) + ' €</div></div>' +
-      '</div>';
+      '<div class="result-grid">' + kacheln + '</div>' +
+      (istBlech
+        ? '<div class="field-hint">Gerechnet mit der Dichte einer üblichen Legierung. ' +
+          'Weißgold und stark rote Legierungen liegen darüber oder darunter — ' +
+          'für den genauen Wert das Blech wiegen und oben auf „Gewicht“ wechseln.</div>'
+        : '');
   }
 
   wertMetallTasten.forEach(function (btn) {
@@ -3441,7 +3582,21 @@
     });
   });
 
+  wertModeTasten.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      wertModeTasten.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      wertMode = btn.getAttribute("data-mode");
+      wertGewichtFeld.hidden = wertMode !== "gewicht";
+      wertBlechFelder.hidden = wertMode !== "blech";
+      berechneMaterialwert();
+    });
+  });
+
   wertGewicht.addEventListener("input", berechneMaterialwert);
+  [wertBlechX, wertBlechY, wertBlechS].forEach(function (el) {
+    el.addEventListener("input", berechneMaterialwert);
+  });
   wertFein.addEventListener("change", berechneMaterialwert);
 
   fuelleFeingehalte(wertMetall);
