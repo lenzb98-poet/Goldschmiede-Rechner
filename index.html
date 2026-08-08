@@ -660,6 +660,7 @@
   .metall-silber { --metall: #cfd6dc; }
   .metall-gold   { --metall: #d4af37; }
   .metall-platin { --metall: #8fb0c6; }
+  .metall-weissgold { --metall: #e3dcc4; }
 
   .kurs-name {
     font-size: 0.92rem;
@@ -710,6 +711,21 @@
     background: var(--bg);
     border-color: var(--metall);
     color: var(--metall);
+  }
+
+  /* Vier Tasten werden auf schmalen Geräten sonst zu Buchstabensalat:
+     lieber umbrechen als jede Beschriftung zerlegen. */
+  .metall-wahl { flex-wrap: wrap; }
+  .metall-wahl button { flex: 1 1 40%; }
+
+  /* Der Palladiumkurs unter "Weißgold": klein und gedämpft, er ist ein
+     Beleg zum Nachrechnen und keine zweite Überschrift. */
+  .metall-zusatz {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-dim);
   }
 
   select.wheel-select.klein { font-size: 1.3rem; }
@@ -1415,6 +1431,9 @@
         <div class="segmented metall-wahl" id="wert-metall">
           <button type="button" data-metall="XAG" class="metall-silber">Silber</button>
           <button type="button" data-metall="XAU" class="metall-gold active">Gold</button>
+          <button type="button" data-metall="XWG" class="metall-weissgold">Weißgold
+            <span class="metall-zusatz" id="wert-pd-kurs">Pd —</span>
+          </button>
           <button type="button" data-metall="XPT" class="metall-platin">Platin</button>
         </div>
       </div>
@@ -2479,15 +2498,28 @@
   var ABFRAGE_TIMEOUT = 10000;                             // ms, damit nichts ewig hängt
 
   var METALLE = ["XAG", "XAU", "XPT"];                     // Silber, Gold, Platin
+  /* Palladium wird mitabgefragt, bekommt aber weder eine Kachel noch ein
+   * Handeingabefeld: es ist hier kein Werkstoff zur Auswahl, sondern nur der
+   * Kurs, den Weißgold für seinen Palladiumanteil braucht. Alles, was die
+   * Oberfläche mit "Metall" meint — Kacheln, Verlauf, Handeingabe — bleibt
+   * deshalb bei METALLE, nur die Abfrage selbst zieht XPD mit. */
+  var ABFRAGE_METALLE = METALLE.concat(["XPD"]);
   var kursStand = document.getElementById("kurs-stand");
   var kursRetry = document.getElementById("kurs-retry");
   var kursLaeuft = false;                                  // verhindert Doppelabfragen
 
-  var liveKurse = { XAG: null, XAU: null, XPT: null };     // abgefragt, EUR je Gramm
+  var liveKurse = { XAG: null, XAU: null, XPT: null, XPD: null };   // abgefragt, EUR je Gramm
   var handKurse = { XAG: null, XAU: null, XPT: null };     // von Hand eingetragen
   var liveStand = null;                                    // Zeitpunkt der letzten Abfrage
   var kursDiagnose = document.getElementById("kurs-diagnose");
-  var NAME = { XAG: "Silber", XAU: "Gold", XPT: "Platin" };
+  var wertPdKurs = document.getElementById("wert-pd-kurs");
+  var NAME = { XAG: "Silber", XAU: "Gold", XPT: "Platin", XPD: "Palladium",
+               XWG: "Weißgold" };
+
+  /* Palladiumanteil in Weißgold, in Prozent vom Bruttogewicht. Derselbe Wert
+   * steht im Goldankauf als Vorgabe seines Eingabefelds — beide Module sollen
+   * dasselbe Weißgold meinen, deshalb hängen sie an dieser einen Zahl. */
+  var WG_PD_ANTEIL = 19;
 
   // Läuft die Seite über einen echten Web-Ursprung? Nur http/https zählen.
   // Alles andere — file://, die eigenen Schemata von Editor-Vorschauen,
@@ -2548,7 +2580,18 @@
       document.getElementById("kurs-" + m).textContent =
         v == null ? "—" : fmt(v, v < 10 ? 3 : 2);
     });
+    zeigePdKurs();
     berechneMaterialwert();   // Rechner unten hängt an denselben Kursen
+  }
+
+  // Palladium klein an der Weißgold-Taste: Weißgold hat keinen eigenen Kurs,
+  // sein Wert entsteht aus Feingold plus Palladium. Steht der Palladiumkurs
+  // mit dran, lässt sich das Ergebnis von Hand nachrechnen.
+  function zeigePdKurs(text) {
+    if (!wertPdKurs) return;
+    if (text) { wertPdKurs.textContent = text; return; }
+    var p = aktuellerPreis("XPD");
+    wertPdKurs.textContent = "Pd " + (p == null ? "—" : fmt(p, 2) + " €/g");
   }
 
   function zaehleHand() {
@@ -2584,13 +2627,14 @@
     METALLE.forEach(function (m) {
       if (handKurse[m] == null) document.getElementById("kurs-" + m).textContent = "…";
     });
+    zeigePdKurs("Pd …");
 
     // Wechselkurs und Metalle bewusst PARALLEL und unabhängig voneinander.
     // Vorher hing alles am Wechselkurs: schlug der fehl, wurden die
     // Metallquellen nie angefasst — dann weiß man hinterher nicht, ob die
     // überhaupt funktionieren. Jetzt meldet jede Quelle ihr eigenes Ergebnis.
     var abfragen = [versucheReihe(API_WECHSELKURS)].concat(
-      METALLE.map(function (m) { return versucheReihe(API_METALL(m)); })
+      ABFRAGE_METALLE.map(function (m) { return versucheReihe(API_METALL(m)); })
     );
 
     Promise.allSettled(abfragen).then(function (res) {
@@ -2618,7 +2662,7 @@
       // --- Metalle auswerten (auch ohne Wechselkurs, für die Diagnose) ---
       var erfolge = 0;
       metallErgebnisse.forEach(function (e, i) {
-        var m = METALLE[i];
+        var m = ABFRAGE_METALLE[i];
         liveKurse[m] = null;
         if (e.status !== "fulfilled") {
           diagnose.push(NAME[m] + ": " + fehlerKlartext(e.reason));
@@ -2645,11 +2689,11 @@
         liveStand = new Date();
         var uhrzeit = liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
         setzeStand(
-          "Stand: " + uhrzeit + " Uhr" + (erfolge < METALLE.length ? " · nicht alle Kurse erreichbar" : ""),
+          "Stand: " + uhrzeit + " Uhr" + (erfolge < ABFRAGE_METALLE.length ? " · nicht alle Kurse erreichbar" : ""),
           false,
           liveStand.toLocaleString("de-DE") + " · Umrechnung über EZB-Referenzkurs"
         );
-        kursDiagnose.hidden = erfolge === METALLE.length;
+        kursDiagnose.hidden = erfolge === ABFRAGE_METALLE.length;
         return;
       }
 
@@ -3399,6 +3443,10 @@
   var FEINGEHALTE = {
     XAG: [800, 835, 925, 999],
     XAU: [333, 375, 585, 750, 900, 916, 999],
+    // Weißgold bewusst nur mit den Stempeln, die es als Weißgold auch gibt.
+    // Ein "999 Weißgold" wäre reines Gold und damit gelb — die Liste des
+    // Gelbgolds hier mitzuführen böte Stempel an, die es nicht geben kann.
+    XWG: [375, 585, 750],
     XPT: [585, 800, 900, 950, 999]
   };
   // Beschriftungen, wo eine geläufige Zweitbezeichnung existiert
@@ -3406,10 +3454,12 @@
     XAG: { 925: "Sterling", 999: "Feinsilber" },
     XAU: { 333: "8 kt", 375: "9 kt", 585: "14 kt", 750: "18 kt",
            900: "21,6 kt", 916: "22 kt", 999: "24 kt · Feingold" },
+    XWG: { 375: "9 kt", 585: "14 kt", 750: "18 kt" },
     XPT: { 999: "Feinplatin" }
   };
-  var FEIN_START = { XAG: 925, XAU: 585, XPT: 950 };   // gängigster Stempel je Metall
-  var FEIN_NAME  = { XAG: "Feinsilber", XAU: "Feingold", XPT: "Feinplatin" };
+  var FEIN_START = { XAG: 925, XAU: 585, XWG: 585, XPT: 950 };   // gängigster Stempel
+  var FEIN_NAME  = { XAG: "Feinsilber", XAU: "Feingold", XWG: "Feingold",
+                     XPT: "Feinplatin" };
 
   /* Dichte je Legierung in g/cm³ — nötig, um aus Blechmaßen ein Gewicht zu
    * bekommen:
@@ -3428,6 +3478,10 @@
     XAG: { 800: 10.10, 835: 10.20, 925: 10.36, 999: 10.49 },
     XAU: { 333: 11.50, 375: 11.90, 585: 13.10, 750: 15.45,
            900: 17.30, 916: 17.60, 999: 19.32 },
+    // Weißgold auf Palladiumbasis — passend dazu, dass hier mit einem
+    // Palladiumanteil gerechnet wird. Nickelweißgold liegt deutlich darunter
+    // (585 nickelgebunden rund 12,9 statt 14,6).
+    XWG: { 375: 12.90, 585: 14.60, 750: 16.40 },
     XPT: { 585: 16.30, 800: 18.70, 900: 20.10, 950: 20.70, 999: 21.45 }
   };
 
@@ -3523,29 +3577,56 @@
       return;
     }
 
-    var preis = aktuellerPreis(wertMetall);
+    // Weißgold ist kein gehandeltes Metall: es wird über sein Feingold
+    // bewertet, dazu kommt der Palladiumanteil zum Palladiumkurs.
+    var istWeiss = wertMetall === "XWG";
+    var basis = istWeiss ? "XAU" : wertMetall;
+    var preis = aktuellerPreis(basis);
+    var pdPreis = istWeiss ? aktuellerPreis("XPD") : null;
+
     if (preis == null) {
-      wertErgebnis.innerHTML = '<div class="hint">Für ' + NAME[wertMetall] +
+      wertErgebnis.innerHTML = '<div class="hint">Für ' + NAME[basis] +
         ' liegt kein Kurs vor — oben abfragen oder von Hand eintragen.</div>';
+      return;
+    }
+    if (istWeiss && pdPreis == null) {
+      // Für Palladium gibt es bewusst kein Handeingabefeld, also auch nicht
+      // den sonst üblichen Hinweis darauf.
+      wertErgebnis.innerHTML = '<div class="hint">Für Palladium liegt kein Kurs vor — ' +
+        'oben erneut abfragen. Ohne ihn lässt sich Weißgold nicht bewerten.</div>';
       return;
     }
 
     var gewicht = quelle.gewicht;
     var feingewicht = gewicht * promille / 1000;
-    var wert = feingewicht * preis;
+    var pdGramm = istWeiss ? gewicht * WG_PD_ANTEIL / 100 : 0;
+    var wert = feingewicht * preis + (istWeiss ? pdGramm * pdPreis : 0);
     var istBlech = quelle.volumen != null;
 
     var rechenweg = istBlech
       ? fmt(quelle.x, 1) + ' × ' + fmt(quelle.y, 1) + ' × ' + fmt(quelle.s, 2) +
         ' mm · ' + fmt(quelle.dichte, 2) + ' g/cm³'
-      : fmt(gewicht, 2) + ' g × ' + promille + ' ‰ × ' +
-        fmt(preis, preis < 10 ? 3 : 2) + ' € je g';
+      : (istWeiss
+          ? fmt(gewicht, 2) + ' g · ' + promille + ' ‰ Gold + ' +
+            fmt(WG_PD_ANTEIL, 0) + ' % Palladium'
+          : fmt(gewicht, 2) + ' g × ' + promille + ' ‰ × ' +
+            fmt(preis, preis < 10 ? 3 : 2) + ' € je g');
 
     var kacheln =
       '<div class="result-item"><div class="label">' + FEIN_NAME[wertMetall] + '</div>' +
         '<div class="value">' + fmt(feingewicht, 2) + ' g</div></div>' +
       '<div class="result-item"><div class="label">Kurs je g ' + FEIN_NAME[wertMetall] + '</div>' +
         '<div class="value">' + fmt(preis, preis < 10 ? 3 : 2) + ' €</div></div>';
+
+    // Bei Weißgold beide Bestandteile mit Menge UND Kurs zeigen, damit sich
+    // die Summe oben Posten für Posten nachrechnen lässt.
+    if (istWeiss) {
+      kacheln +=
+        '<div class="result-item"><div class="label">Palladium</div>' +
+          '<div class="value">' + fmt(pdGramm, 2) + ' g</div></div>' +
+        '<div class="result-item"><div class="label">Kurs je g Palladium</div>' +
+          '<div class="value">' + fmt(pdPreis, pdPreis < 10 ? 3 : 2) + ' €</div></div>';
+    }
 
     // Beim Blech gehen Gewicht und Volumen voran: das Gewicht ist hier ja
     // gerechnet und nicht eingegeben, also selbst ein Ergebnis.
@@ -3566,9 +3647,11 @@
       '</div>' +
       '<div class="result-grid">' + kacheln + '</div>' +
       (istBlech
-        ? '<div class="field-hint">Gerechnet mit der Dichte einer üblichen Legierung. ' +
-          'Weißgold und stark rote Legierungen liegen darüber oder darunter — ' +
-          'für den genauen Wert das Blech wiegen und oben auf „Gewicht“ wechseln.</div>'
+        ? '<div class="field-hint">Gerechnet mit der Dichte einer üblichen Legierung' +
+          (istWeiss
+            ? ' auf Palladiumbasis — nickelgebundenes Weißgold ist deutlich leichter'
+            : '; stark rote oder silberreiche Legierungen liegen darüber oder darunter') +
+          '. Für den genauen Wert das Blech wiegen und oben auf „Gewicht“ wechseln.</div>'
         : '');
   }
 
@@ -3727,7 +3810,7 @@
   var gaPdAktivBox = document.getElementById("ga-pd-aktiv");
   var gaPdProzentInput = document.getElementById("ga-pd-prozent");
 
-  var GA_PD_PROZENT_VORGABE = 19;   // üblicher Palladiumanteil in Weißgold
+  var GA_PD_PROZENT_VORGABE = WG_PD_ANTEIL;   // üblicher Palladiumanteil in Weißgold
   var GA_ANKAUF_VORGABE = 80;       // üblicher Ankaufsatz, ohne Eintrag angesetzt
   var GA_FIX_VORGABE = 0;
 
