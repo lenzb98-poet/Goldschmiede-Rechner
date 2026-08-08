@@ -368,12 +368,9 @@
     margin-top: 0.35rem;
   }
 
-  /* Blechmaße: Länge und Breite gehören als Paar nebeneinander, sonst
-     scrollt die Karte auf dem Handy unnötig weit. Den Abstand nach unten
-     tragen hier die Hüllen — "field:last-child" setzt ihn in verschachtelten
-     Blöcken sonst auf null und der Hinweis klebt am nächsten Feld. */
-  .mass-paar { display: flex; gap: 0.5rem; margin-bottom: 1.1rem; }
-  .mass-paar .field { flex: 1; min-width: 0; margin-bottom: 0; }
+  /* Den Abstand nach unten trägt die Hülle der Blechmaße: "field:last-child"
+     setzt ihn in verschachtelten Blöcken sonst auf null und der Hinweis
+     klebte am Feingehalt darunter. */
   .blech-felder { margin-bottom: 1.1rem; }
   .blech-felder > .field:last-child { margin-bottom: 0; }
 
@@ -1455,27 +1452,37 @@
       </div>
 
       <div class="blech-felder" id="wert-blech-felder" hidden>
-        <div class="mass-paar">
-          <div class="field">
-            <label for="wert-blech-x">Länge</label>
-            <div class="input-with-unit">
+        <div class="field">
+          <label for="wert-blech-x">Länge</label>
+          <div class="field-row">
+            <select class="wheel-select" id="wert-blech-x-wheel"></select>
+            <div class="input-with-unit" id="wert-blech-x-manual" hidden>
               <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-x" placeholder="z. B. 40">
               <span class="unit">mm</span>
             </div>
+            <button type="button" class="mode-toggle" id="wert-blech-x-toggle">manuell</button>
           </div>
-          <div class="field">
-            <label for="wert-blech-y">Breite</label>
-            <div class="input-with-unit">
+        </div>
+        <div class="field">
+          <label for="wert-blech-y">Breite</label>
+          <div class="field-row">
+            <select class="wheel-select" id="wert-blech-y-wheel"></select>
+            <div class="input-with-unit" id="wert-blech-y-manual" hidden>
               <input type="text" inputmode="decimal" enterkeyhint="next" id="wert-blech-y" placeholder="z. B. 25">
               <span class="unit">mm</span>
             </div>
+            <button type="button" class="mode-toggle" id="wert-blech-y-toggle">manuell</button>
           </div>
         </div>
         <div class="field">
           <label for="wert-blech-s">Stärke</label>
-          <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-blech-s" placeholder="z. B. 1,2">
-            <span class="unit">mm</span>
+          <div class="field-row">
+            <select class="wheel-select" id="wert-blech-s-wheel"></select>
+            <div class="input-with-unit" id="wert-blech-s-manual" hidden>
+              <input type="text" inputmode="decimal" enterkeyhint="done" id="wert-blech-s" placeholder="z. B. 1,2">
+              <span class="unit">mm</span>
+            </div>
+            <button type="button" class="mode-toggle" id="wert-blech-s-toggle">manuell</button>
           </div>
           <div class="field-hint">Gewicht wird über das Volumen und die Dichte der Legierung gerechnet.</div>
         </div>
@@ -3681,6 +3688,35 @@
     el.addEventListener("input", berechneMaterialwert);
   });
   wertFein.addEventListener("change", berechneMaterialwert);
+
+  /* Blechmaße über dieselbe Rad-Bedienung wie im Ringrechner: das Rad ist der
+   * Grundzustand, der Knopf daneben schaltet auf Tippen um. Die Räder decken
+   * ab, was in der Werkstatt an Blech durch die Hand geht; der manuelle Weg
+   * bleibt für alles darüber (ein 150-mm-Streifen etwa) offen, sonst wäre die
+   * Liste eine Obergrenze statt einer Hilfe.
+   * Beide Bedienarten schreiben in dasselbe Eingabefeld und lösen dessen
+   * "input"-Ereignis aus — berechneMaterialwert() liest unverändert von dort. */
+  wireRadManuell({
+    input: wertBlechX,
+    select: document.getElementById("wert-blech-x-wheel"),
+    manualBox: document.getElementById("wert-blech-x-manual"),
+    toggleBtn: document.getElementById("wert-blech-x-toggle"),
+    min: 1, max: 100, schritt: 1, einheit: "mm", start: 50
+  });
+  wireRadManuell({
+    input: wertBlechY,
+    select: document.getElementById("wert-blech-y-wheel"),
+    manualBox: document.getElementById("wert-blech-y-manual"),
+    toggleBtn: document.getElementById("wert-blech-y-toggle"),
+    min: 1, max: 100, schritt: 1, einheit: "mm", start: 25
+  });
+  wireRadManuell({
+    input: wertBlechS,
+    select: document.getElementById("wert-blech-s-wheel"),
+    manualBox: document.getElementById("wert-blech-s-manual"),
+    toggleBtn: document.getElementById("wert-blech-s-toggle"),
+    min: 1, max: 5, schritt: 0.1, einheit: "mm", start: 1
+  });
 
   fuelleFeingehalte(wertMetall);
 
