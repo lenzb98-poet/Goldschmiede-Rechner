@@ -1525,10 +1525,10 @@
         <div class="field">
           <label for="ga-haendler-prozent">Ankauf zu</label>
           <div class="input-with-unit">
-            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-prozent" placeholder="80">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="ga-haendler-prozent" placeholder="65">
             <span class="unit">%</span>
           </div>
-          <div class="field-hint">Anteil des Metallwerts, der ausgezahlt wird. Leer = 80 %.</div>
+          <div class="field-hint">Anteil des Metallwerts, der ausgezahlt wird. Leer = 65 %.</div>
         </div>
         <div class="field">
           <label for="ga-haendler-fix">Auf-/Abschlag</label>
@@ -1540,7 +1540,7 @@
         </div>
 
         <label class="check-row" for="ga-pd-aktiv">
-          <input type="checkbox" id="ga-pd-aktiv" checked>
+          <input type="checkbox" id="ga-pd-aktiv">
           <span>Palladium bei Weißgold vergüten</span>
         </label>
         <div class="field">
@@ -3804,7 +3804,7 @@
   var gaPdProzentInput = document.getElementById("ga-pd-prozent");
 
   var GA_PD_PROZENT_VORGABE = WG_PD_ANTEIL;   // üblicher Palladiumanteil in Weißgold
-  var GA_ANKAUF_VORGABE = 80;       // üblicher Ankaufsatz, ohne Eintrag angesetzt
+  var GA_ANKAUF_VORGABE = 65;       // üblicher Ankaufsatz, ohne Eintrag angesetzt
   var GA_FIX_VORGABE = 0;
 
   /* Merken für den Fall ohne Netz. Ohne diesen Speicher gäbe es beim ersten
