@@ -1188,6 +1188,7 @@
   <button class="tab" data-tab="umfang">Umfang & Ø</button>
   <button class="tab" data-tab="wert">Materialwert</button>
   <button class="tab" data-tab="goldankauf">Goldankauf</button>
+  <button class="tab" data-tab="einheiten">Einheiten</button>
 </nav>
 
 <main id="panels">
@@ -1586,6 +1587,32 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-einheiten">
+    <div class="card">
+      <div class="field">
+        <label>Was möchtest du umrechnen?</label>
+        <div class="segmented" id="einheiten-kategorie">
+          <button type="button" data-kategorie="gewicht" class="active">Gewicht</button>
+          <button type="button" data-kategorie="laenge">Länge</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="einheiten-wert">Wert</label>
+        <div class="field-row">
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="einheiten-wert" placeholder="z. B. 10">
+          </div>
+          <select class="wheel-select klein" id="einheiten-von"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="einheiten-ergebnis">
+      <div class="placeholder">Wert eingeben, um die Umrechnung zu sehen.</div>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -1607,8 +1634,8 @@
   }
 
   // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
-  // "Materialwert" und "Goldankauf" stehen als eigene Panels fest im HTML
-  // und fehlen hier deshalb bewusst.
+  // "Materialwert", "Goldankauf" und "Einheiten" stehen als eigene Panels
+  // fest im HTML und fehlen hier deshalb bewusst.
   var kommende = [
     { id: "legierung", tab: "Legierung",       titel: "3 · Legierungsrechnung",
       text: "Wie viel Feingold und wie viel Zuschlag für x Gramm in y Karat. Dazu der umgekehrte Fall: vorhandenes Material hochlegieren oder abstrecken." },
@@ -1616,8 +1643,6 @@
       text: "Nachschlagetafel mit Name und Umriss." },
     { id: "stein",    tab: "Steingewicht",     titel: "5 · Steingewicht",
       text: "Maße plus Schliffform plus Steinart ergibt das Karatgewicht. Maße × Formfaktor × Dichte, die Rundistenstärke kommt als Zuschlag dazu." },
-    { id: "einheiten", tab: "Einheiten",       titel: "7 · Einheiten",
-      text: "mm, Gramm, Karat, Pennyweight, Unze." },
     { id: "mohs",     tab: "Mohshärte",   titel: "8 · Mohshärte",
       text: "Nachschlag, bei dem Stein, Name und Härte zusammen zu sehen sind." }
   ];
@@ -4182,6 +4207,100 @@
   gaZeigeKursInfo();
   berechneGoldankauf();
   gaHoleKurse();
+
+  /* --- Modul 7: Einheiten ----------------------------------------------
+   *
+   * Reiner Umrechner, keine Kurse: eine Kategorie (Gewicht/Länge), darin
+   * eine Ausgangseinheit, und darunter je eine Kachel für die restlichen
+   * Einheiten dieser Kategorie. proBasis ist "wie viele Gramm bzw.
+   * Millimeter steckt in einer Einheit davon" — daraus lässt sich jede
+   * Einheit in jede andere umrechnen, ohne dass jedes Paar einen eigenen
+   * Faktor bräuchte:
+   *
+   *   Basiswert       = Eingabe · proBasis[von]
+   *   Ergebnis[Ziel]   = Basiswert / proBasis[Ziel]
+   *
+   * Die Feinunze teilt sich die Konstante UNZE_IN_GRAMM mit dem
+   * Materialwert-Modul weiter oben, damit beide Stellen exakt dasselbe
+   * Gramm-Gewicht meinen.
+   *
+   * Dies ist ein erster grober Aufschlag: nur Gewicht und Länge, ohne
+   * Rundistenmaße oder Ringgrößen-Bezug — Ausbaustufe für später.
+   */
+  var EINHEITEN_KATEGORIEN = {
+    gewicht: [
+      { id: "g",   name: "Gramm",        kurz: "g",    proBasis: 1,               nachkomma: 2 },
+      { id: "ct",  name: "Karat",        kurz: "ct",   proBasis: 0.2,             nachkomma: 3 },
+      { id: "dwt", name: "Pennyweight",  kurz: "dwt",  proBasis: 1.55517384,      nachkomma: 3 },
+      { id: "oz",  name: "Feinunze",     kurz: "oz t", proBasis: UNZE_IN_GRAMM,   nachkomma: 4 }
+    ],
+    laenge: [
+      { id: "mm", name: "Millimeter", kurz: "mm", proBasis: 1,    nachkomma: 2 },
+      { id: "cm", name: "Zentimeter", kurz: "cm", proBasis: 10,   nachkomma: 3 },
+      { id: "zoll", name: "Zoll",     kurz: "″",  proBasis: 25.4, nachkomma: 4 }
+    ]
+  };
+
+  var einheitenKategorie = "gewicht";
+  var einheitenKategorieTasten = document.querySelectorAll("#einheiten-kategorie button");
+  var einheitenWertInput = document.getElementById("einheiten-wert");
+  var einheitenVonSelect = document.getElementById("einheiten-von");
+  var einheitenErgebnis = document.getElementById("einheiten-ergebnis");
+
+  function fuelleEinheitenVon() {
+    einheitenVonSelect.innerHTML = "";
+    EINHEITEN_KATEGORIEN[einheitenKategorie].forEach(function (e) {
+      var opt = document.createElement("option");
+      opt.value = e.id;
+      // Kurzform statt "Name (Kürzel)": das Feld teilt sich die Zeile mit
+      // der Werteingabe, für "Pennyweight (dwt)" ist da kein Platz.
+      opt.textContent = e.name;
+      einheitenVonSelect.appendChild(opt);
+    });
+  }
+
+  function berechneEinheiten() {
+    var liste = EINHEITEN_KATEGORIEN[einheitenKategorie];
+    var roh = einheitenWertInput.value;
+
+    if (roh.trim() === "") {
+      einheitenErgebnis.innerHTML = '<div class="placeholder">Wert eingeben, um die Umrechnung zu sehen.</div>';
+      return;
+    }
+    var wert = parseDe(roh);
+    if (isNaN(wert)) {
+      einheitenErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
+      return;
+    }
+
+    var von = liste.find(function (e) { return e.id === einheitenVonSelect.value; });
+    var basiswert = wert * von.proBasis;
+
+    var kacheln = liste
+      .filter(function (e) { return e.id !== von.id; })
+      .map(function (e) {
+        var ergebnis = basiswert / e.proBasis;
+        return '<div class="result-item"><div class="label">' + e.name + '</div>' +
+          '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz + '</div></div>';
+      }).join("");
+
+    einheitenErgebnis.innerHTML = '<div class="result-grid">' + kacheln + '</div>';
+  }
+
+  einheitenKategorieTasten.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      einheitenKategorieTasten.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      einheitenKategorie = btn.getAttribute("data-kategorie");
+      fuelleEinheitenVon();
+      berechneEinheiten();
+    });
+  });
+
+  einheitenWertInput.addEventListener("input", berechneEinheiten);
+  einheitenVonSelect.addEventListener("change", berechneEinheiten);
+
+  fuelleEinheitenVon();
 })();
 </script>
 
