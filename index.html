@@ -4502,12 +4502,11 @@
   }
 
   function verkleinernSkizze(startUmfang, schnittLaenge, staerke) {
-    // cy + R muss allein schon in die viewBox passen: sobald der Keil über
-    // 90° hinausreicht, liegt sein tiefster Punkt direkt unter dem
-    // Mittelpunkt, unabhängig vom genauen Winkel. Darüber kommen noch
-    // Maßlinien-Abstand und Beschriftung — die viewBox unten ist entsprechend
-    // großzügig bemessen (siehe dort).
-    var cx = 118, cy = 128;
+    // Der Ausschnitt sitzt mittig oben (um 90°) statt an einem der beiden
+    // offenen Enden — dadurch bleibt die ganze Zeichnung innerhalb von
+    // [cy-R, cy], nichts wandert unter die Mittellinie. cy muss deshalb nur
+    // nach oben hin Platz für Maßhilfslinien und Beschriftung lassen.
+    var cx = 150, cy = 140;
     var R = 95;                                    // fester Außenradius in Bildschirm-Einheiten
     var rInnenMM = startUmfang / (2 * Math.PI);
     var rAussenMM = rInnenMM + staerke;
@@ -4516,29 +4515,36 @@
 
     // Zeichenwinkel begrenzt: bei sehr kleiner Ausgangsgröße mit sehr großer
     // Differenz (beides über die manuelle Eingabe möglich) würde der Keil
-    // sonst bis zum linken, ungeschnittenen Ende durchwachsen. Die Zahl im
+    // sonst bis zu einem der beiden offenen Enden durchwachsen. Die Zahl im
     // Ergebnis bleibt exakt, nur der gezeichnete Keil endet spätestens bei
-    // 160°, mit sichtbarem Rest bis zum linken Rand.
+    // 160°, mit sichtbarem Rest bis zu beiden Rändern.
     var thetaGrad = Math.max(0, Math.min(schnittLaenge / rAussenMM * 180 / Math.PI, 160));
+    var halbTheta = thetaGrad / 2;
+    var linksWinkel = 90 + halbTheta;    // linkes Ende des Ausschnitts
+    var rechtsWinkel = 90 - halbTheta;   // rechtes Ende des Ausschnitts
 
-    var bandAussenLinks = rvPunkt(cx, cy, R, 180);
-    var bandAussenRechts = rvPunkt(cx, cy, R, 0);
-    var bandInnenRechts = rvPunkt(cx, cy, rInnen, 0);
-    var bandInnenLinks = rvPunkt(cx, cy, rInnen, 180);
+    function bandStueck(vonWinkel, bisWinkel) {
+      var aussenVon = rvPunkt(cx, cy, R, vonWinkel);
+      var aussenBis = rvPunkt(cx, cy, R, bisWinkel);
+      var innenBis = rvPunkt(cx, cy, rInnen, bisWinkel);
+      var innenVon = rvPunkt(cx, cy, rInnen, vonWinkel);
+      return '<path class="rv-band rv-band-kante" d="M ' + rvP(aussenVon) +
+        ' A ' + R + ' ' + R + ' 0 0 1 ' + rvP(aussenBis) +
+        ' L ' + rvP(innenBis) +
+        ' A ' + rInnen.toFixed(2) + ' ' + rInnen.toFixed(2) + ' 0 0 0 ' + rvP(innenVon) +
+        ' Z" stroke-width="1.5"/>';
+    }
 
-    var band =
-      '<path class="rv-band rv-band-kante" d="M ' + rvP(bandAussenLinks) +
-      ' A ' + R + ' ' + R + ' 0 0 1 ' + rvP(bandAussenRechts) +
-      ' L ' + rvP(bandInnenRechts) +
-      ' A ' + rInnen.toFixed(2) + ' ' + rInnen.toFixed(2) + ' 0 0 0 ' + rvP(bandInnenLinks) +
-      ' Z" stroke-width="1.5"/>';
+    // Zwei Bandstücke links und rechts vom Ausschnitt, beide von "außen nach
+    // innen" im gleichen Drehsinn aufgebaut wie zuvor der durchgehende Bogen.
+    var band = bandStueck(180, linksWinkel) + bandStueck(rechtsWinkel, 0);
 
     var keil = "", massAnzeige = "";
     if (thetaGrad > 0.3) {
-      var wAussenStart = bandAussenRechts;
-      var wAussenEnd = rvPunkt(cx, cy, R, -thetaGrad);
-      var wInnenEnd = rvPunkt(cx, cy, rInnen, -thetaGrad);
-      var wInnenStart = bandInnenRechts;
+      var wAussenStart = rvPunkt(cx, cy, R, linksWinkel);
+      var wAussenEnd = rvPunkt(cx, cy, R, rechtsWinkel);
+      var wInnenEnd = rvPunkt(cx, cy, rInnen, rechtsWinkel);
+      var wInnenStart = rvPunkt(cx, cy, rInnen, linksWinkel);
 
       keil =
         '<path class="rv-keil rv-keil-kante" d="M ' + rvP(wAussenStart) +
@@ -4547,12 +4553,13 @@
         ' A ' + rInnen.toFixed(2) + ' ' + rInnen.toFixed(2) + ' 0 0 0 ' + rvP(wInnenStart) +
         ' Z" stroke-width="1.25"/>';
 
-      // Maßlinie außerhalb des Bogens: Maßhilfslinien radial nach außen,
-      // dazwischen die eigentliche Linie mit Pfeilen an beiden Enden und
-      // der Beschriftung auf halbem Weg, weiter nach außen versetzt.
+      // Maßlinie außerhalb des Bogens, über dem Ausschnitt: Maßhilfslinien
+      // radial nach außen, dazwischen die eigentliche Linie mit Pfeilen an
+      // beiden Enden und der Beschriftung auf halbem Weg, weiter nach außen
+      // versetzt.
       var gap = 15, pfeilGroesse = 6.5;
-      var dimStart = rvPunkt(cx, cy, R + gap, 0);
-      var dimEnd = rvPunkt(cx, cy, R + gap, -thetaGrad);
+      var dimStart = rvPunkt(cx, cy, R + gap, linksWinkel);
+      var dimEnd = rvPunkt(cx, cy, R + gap, rechtsWinkel);
 
       var dx = dimEnd.x - dimStart.x, dy = dimEnd.y - dimStart.y;
       var laenge = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -4560,7 +4567,7 @@
       var einheitZuStart = { x: -einheitZuEnd.x, y: -einheitZuEnd.y };
 
       var mitte = { x: (dimStart.x + dimEnd.x) / 2, y: (dimStart.y + dimEnd.y) / 2 };
-      var radialMitte = rvPunkt(0, 0, 1, -thetaGrad / 2);   // Richtung, nicht Punkt (cx=cy=0)
+      var radialMitte = rvPunkt(0, 0, 1, (linksWinkel + rechtsWinkel) / 2);   // Richtung, nicht Punkt (cx=cy=0)
       var labelPos = { x: mitte.x + radialMitte.x * 15, y: mitte.y + radialMitte.y * 15 };
 
       function rvLinie(klasse, von, bis, extra) {
@@ -4580,7 +4587,7 @@
     }
 
     return '<div class="rv-grafik">' +
-      '<svg class="rv-svg" viewBox="0 0 300 280" role="img" ' +
+      '<svg class="rv-svg" viewBox="0 0 300 170" role="img" ' +
            'aria-label="Skizze: halbe Ringschiene, ' + fmt(schnittLaenge, 1) + ' mm werden herausgesägt">' +
         '<defs>' +
           '<linearGradient id="rv-material" x1="0" y1="0" x2="0" y2="1">' +
