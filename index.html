@@ -313,6 +313,33 @@
     font-weight: 600;
   }
 
+  /* Einheiten: Kacheln sind echte Knöpfe (Antippen wechselt die
+     Ausgangseinheit), sollen aber wie die übrigen .result-item aussehen —
+     hier nur die Button-Vorgaben des Browsers zurücknehmen. */
+  button.einheiten-kachel {
+    -webkit-appearance: none;
+    appearance: none;
+    font: inherit;
+    color: inherit;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  button.einheiten-kachel:hover,
+  button.einheiten-kachel:focus-visible {
+    border-color: var(--gold-dim);
+  }
+
+  button.einheiten-kachel:active {
+    border-color: var(--gold);
+  }
+
+  /* Fünf bis sieben Kacheln je Kategorie: bei zwei Spalten bliebe die letzte
+     Zeile oft einzeln und wirkt verloren. Drei Spalten nutzen die Breite
+     gleichmäßiger, ohne dass die Kürzel-Werte ("31,1035 g") eng werden. */
+  .einheiten-grid { grid-template-columns: repeat(3, 1fr); }
+
   .hint {
     text-align: center;
     color: var(--danger);
@@ -4224,15 +4251,23 @@
    * Materialwert-Modul weiter oben, damit beide Stellen exakt dasselbe
    * Gramm-Gewicht meinen.
    *
-   * Dies ist ein erster grober Aufschlag: nur Gewicht und Länge, ohne
-   * Rundistenmaße oder Ringgrößen-Bezug — Ausbaustufe für später.
+   * Jede Kachel ist zugleich ein Knopf: antippen macht diese Einheit zur
+   * neuen Ausgangseinheit, mit dem exakten (nicht dem gerundet angezeigten)
+   * Wert übernommen. So reicht ein Antippen, um z. B. von Gramm auf Karat
+   * zu wechseln, statt Auswahlliste öffnen und den Wert neu abzulesen.
+   *
+   * Reihenfolge je Kategorie nach Größe aufsteigend, das liest sich als
+   * Kachel-Raster am ehesten wie eine Skala.
    */
   var EINHEITEN_KATEGORIEN = {
     gewicht: [
-      { id: "g",   name: "Gramm",        kurz: "g",    proBasis: 1,               nachkomma: 2 },
+      { id: "mg",  name: "Milligramm",   kurz: "mg",   proBasis: 0.001,           nachkomma: 1 },
+      { id: "pt",  name: "Punkt",        kurz: "pt",   proBasis: 0.002,           nachkomma: 1 },
       { id: "ct",  name: "Karat",        kurz: "ct",   proBasis: 0.2,             nachkomma: 3 },
+      { id: "g",   name: "Gramm",        kurz: "g",    proBasis: 1,               nachkomma: 2 },
       { id: "dwt", name: "Pennyweight",  kurz: "dwt",  proBasis: 1.55517384,      nachkomma: 3 },
-      { id: "oz",  name: "Feinunze",     kurz: "oz t", proBasis: UNZE_IN_GRAMM,   nachkomma: 4 }
+      { id: "oz",  name: "Feinunze",     kurz: "oz t", proBasis: UNZE_IN_GRAMM,   nachkomma: 4 },
+      { id: "kg",  name: "Kilogramm",    kurz: "kg",   proBasis: 1000,            nachkomma: 4 }
     ],
     laenge: [
       { id: "mm", name: "Millimeter", kurz: "mm", proBasis: 1,    nachkomma: 2 },
@@ -4240,6 +4275,13 @@
       { id: "zoll", name: "Zoll",     kurz: "″",  proBasis: 25.4, nachkomma: 4 }
     ]
   };
+
+  // Die Listen oben sind nach Größe sortiert (fürs Kachel-Raster), damit
+  // steht bei Gewicht "Milligramm" an erster Stelle. Als Ausgangseinheit
+  // taugt das nicht — in der Werkstatt wird in Gramm gedacht, nicht in
+  // Milligramm. Der Startwert je Kategorie ist deshalb fest hinterlegt,
+  // unabhängig von der Sortierung der Liste.
+  var EINHEITEN_START = { gewicht: "g", laenge: "mm" };
 
   var einheitenKategorie = "gewicht";
   var einheitenKategorieTasten = document.querySelectorAll("#einheiten-kategorie button");
@@ -4257,6 +4299,7 @@
       opt.textContent = e.name;
       einheitenVonSelect.appendChild(opt);
     });
+    einheitenVonSelect.value = EINHEITEN_START[einheitenKategorie];
   }
 
   function berechneEinheiten() {
@@ -4280,12 +4323,32 @@
       .filter(function (e) { return e.id !== von.id; })
       .map(function (e) {
         var ergebnis = basiswert / e.proBasis;
-        return '<div class="result-item"><div class="label">' + e.name + '</div>' +
-          '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz + '</div></div>';
+        return '<button type="button" class="result-item einheiten-kachel" data-einheit="' + e.id + '">' +
+          '<div class="label">' + e.name + '</div>' +
+          '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz + '</div></button>';
       }).join("");
 
-    einheitenErgebnis.innerHTML = '<div class="result-grid">' + kacheln + '</div>';
+    einheitenErgebnis.innerHTML = '<div class="result-grid einheiten-grid">' + kacheln + '</div>';
   }
+
+  // Kachel antippen: diese Einheit wird zur neuen Ausgangseinheit. Der Wert
+  // kommt aus dem ungerundeten Basiswert, nicht aus dem angezeigten Text —
+  // sonst würde jeder Wechsel die Rundung der vorherigen Einheit einfrieren.
+  einheitenErgebnis.addEventListener("click", function (ev) {
+    var kachel = ev.target.closest(".einheiten-kachel");
+    if (!kachel) return;
+
+    var liste = EINHEITEN_KATEGORIEN[einheitenKategorie];
+    var von = liste.find(function (e) { return e.id === einheitenVonSelect.value; });
+    var ziel = liste.find(function (e) { return e.id === kachel.getAttribute("data-einheit"); });
+    var wert = parseDe(einheitenWertInput.value);
+    if (!von || !ziel || isNaN(wert)) return;
+
+    var basiswert = wert * von.proBasis;
+    einheitenVonSelect.value = ziel.id;
+    einheitenWertInput.value = fmt(basiswert / ziel.proBasis, ziel.nachkomma);
+    berechneEinheiten();
+  });
 
   einheitenKategorieTasten.forEach(function (btn) {
     btn.addEventListener("click", function () {
