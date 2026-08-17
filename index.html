@@ -1697,6 +1697,14 @@
           <button type="button" class="mode-toggle" id="rv-staerke-toggle">manuell</button>
         </div>
       </div>
+
+      <div class="field">
+        <label class="check-row">
+          <input type="checkbox" id="rv-k-auto">
+          <span>Korrekturfaktor verwenden (dickes Material)</span>
+        </label>
+        <div class="field-hint" id="rv-k-hint">Aus: gerechnet wird mit der Mitte (k = 0,50).</div>
+      </div>
     </div>
 
     <div class="card" id="rv-ergebnis">
@@ -4429,28 +4437,23 @@
 
   fuelleEinheitenVon();
 
-  /* --- Modul: Ringgröße verkleinern (Ringrechner rückwärts) -------------
+  /* --- Modul: Ringgröße ändern (Ringrechner rückwärts) ------------------
    *
-   * NUR DAS LAYOUT UND DIE SKIZZE sind hier fertig gebaut. Die eigentliche
-   * Rechnung — wie viel Material man tatsächlich AUSSEN anzeichnet, damit
-   * nach dem Biegen genau die Zielgröße herauskommt — braucht denselben
-   * Korrekturfaktor wie der Ringrechner (DIN 6935, k=0,50 = Mitte), nur
-   * rückwärts angewandt: dort wandert man von der Innenkante zur neutralen
-   * Faser, hier von der neutralen Faser zurück zur Außenkante, weil dort
-   * mit dem Messschieber angezeichnet wird. Das kommt in einem eigenen
-   * Durchgang mit einem größeren Modell dazu.
+   * Der Ringrechner sagt, wie lang ein Streifen sein muss, damit daraus ein
+   * Ring einer bestimmten Größe wird. Hier läuft dasselbe rückwärts: aus
+   * zwei Größen wird die Materialmenge, die aus einer fertigen Schiene
+   * heraus muss.
    *
-   * Was bereits echt gerechnet wird, weil es ohne Korrekturfaktor auskommt:
-   * die reine Innenumfang-Differenz zwischen Ausgangs- und Zielgröße
-   * (deutsche Ringgröße = Innenumfang in mm, daher eine einfache Subtraktion)
-   * sowie die Geometrie der Skizze (Innen-/Außenradius aus Umfang und
-   * Materialstärke). Die Skizze benutzt diese unkorrigierte Differenz, um
-   * den herausgesägten Keil zu bemaßen — sobald die echte Rechnung
-   * dazukommt, ersetzt ihr Ergebnis einfach diesen einen Wert.
+   * Die Rechnung selbst steht in berechneVerkleinern() — kurz gefasst ist
+   * sie die Zuschnittlänge des Ringrechners für Ausgangs- und Zielgröße,
+   * voneinander abgezogen und anschließend von der neutralen Faser auf den
+   * Außenumfang umgerechnet, weil dort mit dem Messschieber angerissen wird.
    */
   var rvStartInput = document.getElementById("rv-start");
   var rvZielInput = document.getElementById("rv-ziel");
   var rvStaerkeInput = document.getElementById("rv-staerke");
+  var rvKCheckbox = document.getElementById("rv-k-auto");
+  var rvKHint = document.getElementById("rv-k-hint");
   var rvErgebnis = document.getElementById("rv-ergebnis");
 
   var rvStartRad = wireRadManuell({
@@ -4501,7 +4504,7 @@
     return rvP(spitze) + " " + rvP(basis1) + " " + rvP(basis2);
   }
 
-  function verkleinernSkizze(startUmfang, schnittLaenge, staerke) {
+  function verkleinernSkizze(startUmfang, staerke, thetaRad, massText) {
     // Der Ausschnitt sitzt mittig oben (um 90°) statt an einem der beiden
     // offenen Enden — dadurch bleibt die ganze Zeichnung innerhalb von
     // [cy-R, cy], nichts wandert unter die Mittellinie. cy muss deshalb nur
@@ -4515,10 +4518,10 @@
 
     // Zeichenwinkel begrenzt: bei sehr kleiner Ausgangsgröße mit sehr großer
     // Differenz (beides über die manuelle Eingabe möglich) würde der Keil
-    // sonst bis zu einem der beiden offenen Enden durchwachsen. Die Zahl im
-    // Ergebnis bleibt exakt, nur der gezeichnete Keil endet spätestens bei
+    // sonst bis zu einem der beiden offenen Enden durchwachsen. Die Zahlen im
+    // Ergebnis bleiben exakt, nur der gezeichnete Keil endet spätestens bei
     // 160°, mit sichtbarem Rest bis zu beiden Rändern.
-    var thetaGrad = Math.max(0, Math.min(schnittLaenge / rAussenMM * 180 / Math.PI, 160));
+    var thetaGrad = Math.max(0, Math.min(thetaRad * 180 / Math.PI, 160));
     var halbTheta = thetaGrad / 2;
     var linksWinkel = 90 + halbTheta;    // linkes Ende des Ausschnitts
     var rechtsWinkel = 90 - halbTheta;   // rechtes Ende des Ausschnitts
@@ -4583,12 +4586,12 @@
         '<polygon class="rv-pfeil" points="' + rvPfeil(dimEnd, einheitZuEnd, pfeilGroesse) + '"/>' +
         '<text class="rv-mass-wert" x="' + labelPos.x.toFixed(2) + '" y="' + labelPos.y.toFixed(2) + '" ' +
           'text-anchor="middle" dominant-baseline="middle" font-size="14">' +
-          fmt(schnittLaenge, 1) + ' mm</text>';
+          massText + '</text>';
     }
 
     return '<div class="rv-grafik">' +
       '<svg class="rv-svg" viewBox="0 0 300 170" role="img" ' +
-           'aria-label="Skizze: halbe Ringschiene, ' + fmt(schnittLaenge, 1) + ' mm werden herausgesägt">' +
+           'aria-label="Skizze: halbe Ringschiene, außen ' + massText + ' herausgesägt">' +
         '<defs>' +
           '<linearGradient id="rv-material" x1="0" y1="0" x2="0" y2="1">' +
             '<stop offset="0" stop-color="#d4af37" stop-opacity="0.20"/>' +
@@ -4625,22 +4628,87 @@
       return;
     }
 
-    var differenz = start - ziel;   // Innenumfang-Differenz, unkorrigiert — s. Kommentar oben
+    /* Die Rechnung ist der Ringrechner, zweimal angewandt und abgezogen:
+     *
+     *   D      = U / π                     Innendurchmesser je Größe
+     *   L      = π · (D + 2·k·s)           Länge auf der neutralen Faser
+     *                                      (genau die Zuschnittlänge des
+     *                                      Ringrechners, ohne Zugabe)
+     *   ΔL     = L_start − L_ziel          Material, das wegmuss
+     *
+     * ΔL liegt auf der NEUTRALEN FASER. Gesägt wird aber radial durch die
+     * ganze Schiene, und angezeichnet wird AUSSEN. Der Keil hat überall
+     * denselben Öffnungswinkel, also:
+     *
+     *   θ      = ΔL / (D_start/2 + k_start·s)      Keilwinkel
+     *   außen  = θ · (D_start/2 + s)               was man anreißt
+     *   innen  = θ · (D_start/2)
+     *
+     * Weil der Außenradius größer ist als der Radius der neutralen Faser,
+     * ist das Außenmaß IMMER größer als ΔL. Bei dünner Schiene sind das
+     * Zehntelmillimeter, bei einer dicken Bandschiene mehrere Millimeter —
+     * genau der Fehler, den man sonst einbaut.
+     *
+     * k kommt aus derselben DIN-6935-Funktion wie im Ringrechner. Beide
+     * Größen bekommen ihr eigenes k: der engere Zielring biegt schärfer,
+     * seine neutrale Faser liegt weiter innen. Ein Handregler wie im
+     * Ringrechner fehlt hier bewusst — er müsste auf zwei k gleichzeitig
+     * wirken, und was das bedeuten soll, ist nicht eindeutig.
+     */
+    var dStart = start / Math.PI;
+    var dZiel = ziel / Math.PI;
+    var kAn = rvKCheckbox.checked;
+    var kStart = kAn ? kAutomatisch(dStart, staerke) : 0.5;
+    var kZiel = kAn ? kAutomatisch(dZiel, staerke) : 0.5;
+
+    var lStart = Math.PI * (dStart + 2 * kStart * staerke);
+    var lZiel = Math.PI * (dZiel + 2 * kZiel * staerke);
+    var deltaNeutral = lStart - lZiel;
+
+    var rNeutralStart = dStart / 2 + kStart * staerke;
+    var theta = deltaNeutral / rNeutralStart;              // Bogenmaß
+    var deltaAussen = theta * (dStart / 2 + staerke);
+    var deltaInnen = theta * (dStart / 2);
+
+    rvKHint.textContent = kAn
+      ? "k = " + kZahl(kStart) + " (Start) und " + kZahl(kZiel) + " (Ziel) · nach DIN 6935"
+      : "Aus: gerechnet wird mit der Mitte (k = 0,50).";
+
+    var massText = fmt(deltaAussen, 2) + " mm";
 
     rvErgebnis.innerHTML =
-      verkleinernSkizze(start, differenz, staerke) +
+      verkleinernSkizze(start, staerke, theta, massText) +
       '<div class="result-main">' +
-        '<div class="label">Innenumfang-Differenz</div>' +
-        '<div class="value">' + fmt(differenz, 1) + '<span class="unit">mm</span></div>' +
-        '<div class="extra-note">' + fmt(start, 0) + ' mm − ' + fmt(ziel, 0) + ' mm · Ringgröße = Innenumfang</div>' +
+        '<div class="label">Außen anzeichnen und heraussägen</div>' +
+        '<div class="value">' + fmt(deltaAussen, 2) + '<span class="unit">mm</span></div>' +
+        '<div class="extra-note">' + fmt(start, 0) + ' mm → ' + fmt(ziel, 0) + ' mm · s = ' +
+          fmt(staerke, 1) + ' mm' + (kAn ? ' · k = ' + kZahl(kStart) + '/' + kZahl(kZiel) : '') +
+        '</div>' +
       '</div>' +
-      '<div class="info-box warn">' +
-        '<div class="info-box-title">⚠ Noch ohne Korrekturfaktor</div>' +
+      '<div class="result-grid">' +
+        '<div class="result-item"><div class="label">auf der neutralen Faser</div>' +
+          '<div class="value">' + fmt(deltaNeutral, 2) + ' mm</div></div>' +
+        '<div class="result-item"><div class="label">an der Innenkante</div>' +
+          '<div class="value">' + fmt(deltaInnen, 2) + ' mm</div></div>' +
+        '<div class="result-item"><div class="label">Keilwinkel</div>' +
+          '<div class="value">' + fmt(theta * 180 / Math.PI, 1) + ' °</div></div>' +
+        '<div class="result-item"><div class="label">Ringgrößen-Differenz</div>' +
+          '<div class="value">' + fmt(start - ziel, 1) + ' mm</div></div>' +
+      '</div>' +
+      '<div class="info-box">' +
+        '<div class="info-box-title">ℹ Warum außen mehr wegmuss</div>' +
         '<p>' +
-          'Diese Zahl ist die reine Differenz der Innenumfänge — nicht das Maß, das am Messschieber ' +
-          'außen angezeichnet wird. Dafür braucht es denselben Korrekturfaktor wie im Ringrechner ' +
-          '(neutrale Faser, DIN 6935), nur rückwärts: von der neutralen Faser zurück zum Außenumfang. ' +
-          'Diese Umrechnung kommt in einem eigenen Durchgang dazu.' +
+          'Beim Biegen behält nur die neutrale Faser ihre Länge — dort fehlen dem Ring genau ' +
+          fmt(deltaNeutral, 2) + ' mm. Der Sägeschnitt geht aber radial durch die ganze Schiene, ' +
+          'und angerissen wird am Messschieber außen. Weil der Außenradius größer ist, wird ' +
+          'derselbe Keil dort zu ' + fmt(deltaAussen, 2) + ' mm — ' +
+          fmt(deltaAussen - deltaNeutral, 2) + ' mm mehr, als die reine Umfangsdifferenz von ' +
+          fmt(start - ziel, 1) + ' mm vermuten lässt.' +
+        '</p>' +
+        '<p>' +
+          'Bei dünner Schiene ist der Unterschied klein, bei einer dicken Bandschiene ' +
+          'entscheidet er über eine halbe Ringgröße. Wer stur die Umfangsdifferenz absägt, ' +
+          'macht den Ring zu groß.' +
         '</p>' +
       '</div>';
   }
@@ -4648,6 +4716,7 @@
   [rvStartInput, rvZielInput, rvStaerkeInput].forEach(function (el) {
     el.addEventListener("input", berechneVerkleinern);
   });
+  rvKCheckbox.addEventListener("change", berechneVerkleinern);
 
   berechneVerkleinern();
 })();
