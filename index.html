@@ -1228,12 +1228,9 @@
      Breite. Deshalb zwei Zeilen je Posten — Name oben über die volle
      Breite, darunter Material/Feingehalt/Gramm und rechts der Teilpreis.
      So sieht man auf einen Blick, welcher Posten den Preis treibt. */
-  .mk-einleitung {
-    font-size: 0.88rem;
-    line-height: 1.5;
-    color: var(--text-dim);
-    margin-bottom: 1.1rem;
-  }
+  /* Der Schalter steht allein über der Postenliste — den Abstand nach unten
+     trug vorher der Erklärtext, den es nicht mehr gibt. */
+  .mk-haendler-schalter { margin-bottom: 1.2rem; }
 
   .mk-posten-zeile {
     padding: 0.8rem 0;
@@ -1848,20 +1845,11 @@
 
   <section class="panel" id="panel-metallkalk">
     <div class="card">
-      <label class="check-row" for="mk-haendler-an">
+      <label class="check-row mk-haendler-schalter" for="mk-haendler-an">
         <input type="checkbox" id="mk-haendler-an">
         <span>Händlerkalkulation</span>
       </label>
-      <div class="field-hint" style="margin-bottom:1.1rem">
-        Blendet unten den Knopf für Kalkulationsfaktor, Aufschlag und eigene
-        Kurse ein. Aus: es steht nur der reine Materialpreis da.
-      </div>
 
-      <div class="mk-einleitung">
-        Was geht an Rohmaterial in das Stück? Je Posten die Form wählen und
-        deren Maße eintragen — das Gewicht kommt über Volumen und Dichte der
-        Legierung, unten steht der Materialpreis.
-      </div>
       <div id="mk-posten"></div>
       <button type="button" class="add-zeile" id="mk-hinzufuegen">+ Posten hinzufügen</button>
     </div>
