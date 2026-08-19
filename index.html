@@ -5260,6 +5260,19 @@
     var benutzt = {};       // Symbole, die tatsächlich in die Summe eingehen
     var posten = [];
 
+    /* Händlerkette: Rohmaterial × Faktor + Aufschlag.
+     *
+     * Im Händlermodus zeigt die Oberfläche NICHT den Einkaufspreis: schon die
+     * einzelnen Posten stehen mit Faktor da, und der Aufschlag steckt am Ende
+     * kommentarlos in der Gesamtsumme. Der Bildschirm lässt sich damit einem
+     * Kunden zeigen, ohne die eigene Kalkulation offenzulegen. Der ungerechnete
+     * Materialwert bleibt allein im aufklappbaren Händlerbereich sichtbar —
+     * dort, wo man die eigenen Zahlen ohnehin selbst eingibt. */
+    var haendlerAn = mkHaendlerBox.checked;
+    var faktor = mkZahlOderVorgabe(mkFaktorInput.value, MK_FAKTOR_VORGABE);
+    var aufschlag = mkZahlOderVorgabe(mkAufschlagInput.value, MK_AUFSCHLAG_VORGABE);
+    var anzeigeFaktor = haendlerAn ? faktor : 1;
+
     zeilen.forEach(function (zeile) {
       var metall = zeile.querySelector(".mk-material").value;
       var promille = parseFloat(zeile.querySelector(".mk-feingehalt").value);
@@ -5319,7 +5332,7 @@
       summe += wert;
       benutzt[basis] = true;
       if (istWeiss) benutzt.XPD = true;
-      wertFeld.textContent = fmt(wert, 2) + " €";
+      wertFeld.textContent = fmt(wert * anzeigeFaktor, 2) + " €";
 
       // Maße mit in die Aufschlüsselung: sonst stünde dort nur ein Gewicht,
       // dessen Herkunft man nicht mehr sieht.
@@ -5335,7 +5348,12 @@
         detail: (name ? masseText + " · " : "") +
                 NAME[metall] + " " + promille + " · " + fmt(gramm, 1) + " g",
         basisWert: basisWert,
-        pd: pdGramm > 0 ? "+ Palladium " + fmt(pdGramm, 3) + " g × " + fmt(pdPreis, 2) + " €" : null,
+        // Der Kurs steht nur außerhalb des Händlermodus dabei: neben einem
+        // faktorierten Betrag ginge die Rechnung "g × Kurs" nicht mehr auf.
+        pd: pdGramm > 0
+          ? "+ Palladium " + fmt(pdGramm, 3) + " g" +
+            (haendlerAn ? "" : " × " + fmt(pdPreis, 2) + " €")
+          : null,
         pdWert: pdWert
       });
     });
@@ -5344,9 +5362,6 @@
 
     // Händlerkette: Rohmaterial × Faktor + Aufschlag. Ohne Händlermodus
     // bleibt der Endpreis gleich dem Rohmaterial.
-    var haendlerAn = mkHaendlerBox.checked;
-    var faktor = mkZahlOderVorgabe(mkFaktorInput.value, MK_FAKTOR_VORGABE);
-    var aufschlag = mkZahlOderVorgabe(mkAufschlagInput.value, MK_AUFSCHLAG_VORGABE);
     var nachFaktor = summe * faktor;
     var endpreis = nachFaktor + aufschlag;
 
@@ -5358,20 +5373,25 @@
       mkEndkosten.innerHTML = "";
     } else {
       mkSummeFeld.innerHTML = fmt(haendlerAn ? endpreis : summe, 2) + '<span class="unit">€</span>';
-      mkSummeNote.textContent = posten.length + " Posten · " + fmt(gesamtGramm, 1) + " g gesamt" +
-        (haendlerAn ? " · Rohmaterial " + fmt(summe, 2) + " €" : "");
+      // Ohne Hinweis auf den Materialwert: die Notiz steht offen sichtbar.
+      mkSummeNote.textContent = posten.length + " Posten · " + fmt(gesamtGramm, 1) + " g gesamt";
 
       var auf = '<div class="mk-auf">';
       posten.forEach(function (p) {
         auf += '<div class="mk-auf-zeile"><span>' + mkEscape(p.titel) + ' · ' + p.detail + '</span>' +
-               '<span class="mk-auf-wert">' + fmt(p.basisWert, 2) + ' €</span></div>';
+               '<span class="mk-auf-wert">' + fmt(p.basisWert * anzeigeFaktor, 2) + ' €</span></div>';
         if (p.pd) {
           auf += '<div class="mk-auf-zeile mk-auf-unter"><span>' + p.pd + '</span>' +
-                 '<span class="mk-auf-wert">' + fmt(p.pdWert, 2) + ' €</span></div>';
+                 '<span class="mk-auf-wert">' + fmt(p.pdWert * anzeigeFaktor, 2) + ' €</span></div>';
         }
       });
-      auf += '<div class="mk-auf-zeile mk-auf-summe"><span>Rohmaterial</span>' +
-             '<span class="mk-auf-wert">' + fmt(summe, 2) + ' €</span></div></div>';
+      // Im Händlermodus schließt die Liste mit dem Endpreis ab — der Aufschlag
+      // steckt darin, ohne eigene Zeile. Ohne Händlermodus ist die Summe
+      // schlicht der Materialwert.
+      auf += '<div class="mk-auf-zeile mk-auf-summe"><span>' +
+             (haendlerAn ? "Gesamt" : "Rohmaterial") + '</span>' +
+             '<span class="mk-auf-wert">' + fmt(haendlerAn ? endpreis : summe, 2) +
+             ' €</span></div></div>';
       mkAufschluesselung.innerHTML = auf;
 
       // Die Preiskette steht im Händlerbereich — dort, wo auch die Zahlen
@@ -5400,7 +5420,11 @@
         " liegt kein Kurs vor — im Reiter „Materialwert“ abfragen" +
         (haendlerAn ? " oder hier im Händlerbereich von Hand eintragen." : ".") +
         " Diese Posten fehlen so lange in der Summe.";
-    } else if (mitGewicht) {
+    } else if (mitGewicht && !haendlerAn) {
+      // Nur ohne Händlermodus: dort stimmt "Gramm × Kurs" mit den Beträgen
+      // daneben überein. Im Händlermodus stünde der Metallkurs neben
+      // faktorierten Preisen — er ginge nicht auf und verriete zugleich den
+      // Materialwert. Welcher Kurs gilt, steht dann im Händlerbereich.
       mkKursstand.className = "mk-kursstand";
       mkKursstand.textContent = "Gerechnet mit: " + Object.keys(benutzt).map(function (m) {
         var p = mkKurs(m);
