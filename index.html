@@ -1220,6 +1220,156 @@
     color: var(--gold-dim);
     font-weight: 600;
   }
+
+  /* --- Metallkalkulation: ein Block je Posten -------------------------
+     Anders als beim Goldankauf sind die Posten hier NICHT gleichartig —
+     jeder trägt einen eigenen Namen ("Blech für Ringschiene"). Enge
+     Tabellenspalten wie dort scheitern daran: für den Namen bliebe keine
+     Breite. Deshalb zwei Zeilen je Posten — Name oben über die volle
+     Breite, darunter Material/Feingehalt/Gramm und rechts der Teilpreis.
+     So sieht man auf einen Blick, welcher Posten den Preis treibt. */
+  .mk-einleitung {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    margin-bottom: 1.1rem;
+  }
+
+  .mk-posten-zeile {
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mk-posten-zeile:first-child { padding-top: 0; }
+  .mk-posten-zeile:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .mk-zeile-kopf {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Als "input.mk-name": die App-weite Regel input[type="text"] hat dieselbe
+     Spezifität wie eine reine Klasse und schöbe mit 1,8rem Schrift und
+     4rem rechtem Innenabstand den Text sonst aus dem Feld. Gleiches gilt
+     unten für input.mk-gramm. */
+  input.mk-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.5rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-appearance: none;
+  }
+
+  .mk-zeile-werte {
+    display: grid;
+    grid-template-columns: 1.05fr 0.7fr 0.72fr auto;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .mk-material,
+  .mk-feingehalt {
+    font-size: 0.9rem;
+    padding: 0.45rem 0.25rem;
+    border-radius: 0.5rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    min-width: 0;
+  }
+
+  .mk-gramm-wrap { position: relative; min-width: 0; }
+
+  input.mk-gramm {
+    font-size: 0.9rem;
+    padding: 0.45rem 1.3rem 0.45rem 0.4rem;
+    border-radius: 0.5rem;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    text-align: right;
+    width: 100%;
+    min-width: 0;
+    -webkit-appearance: none;
+  }
+
+  .mk-gramm-einheit {
+    position: absolute;
+    right: 0.4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  input.mk-name:focus,
+  .mk-material:focus,
+  .mk-feingehalt:focus,
+  input.mk-gramm:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+
+  .mk-zeile-wert {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--gold);
+    text-align: right;
+    white-space: nowrap;
+    min-width: 3.4rem;
+  }
+
+  /* --- Metallkalkulation: Aufschlüsselung + Kursstand ------------------ */
+  .mk-auf {
+    margin-top: 1.3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .mk-auf-zeile {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.8rem;
+    font-size: 0.87rem;
+    line-height: 1.45;
+    padding: 0.32rem 0;
+    color: var(--text-dim);
+  }
+
+  .mk-auf-zeile .mk-auf-wert {
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .mk-auf-unter { padding-left: 1rem; font-size: 0.8rem; }
+
+  .mk-auf-summe {
+    margin-top: 0.4rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .mk-kursstand {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .mk-kursstand.fehler { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -1234,6 +1384,7 @@
   <button class="tab" data-tab="umfang">Umfang & Ø</button>
   <button class="tab" data-tab="wert">Materialwert</button>
   <button class="tab" data-tab="goldankauf">Goldankauf</button>
+  <button class="tab" data-tab="metallkalk">Metallkalkulation</button>
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
 </nav>
@@ -1631,6 +1782,27 @@
         </div>
         <button type="button" class="kurs-retry" id="ga-kurs-retry">Kurse erneut abfragen</button>
       </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-metallkalk">
+    <div class="card">
+      <div class="mk-einleitung">
+        Was geht an Rohmaterial in das Stück? Jeden Posten einzeln eintragen —
+        Blech, Draht, Fassung — und unten steht, was das Material kostet.
+      </div>
+      <div id="mk-posten"></div>
+      <button type="button" class="add-zeile" id="mk-hinzufuegen">+ Posten hinzufügen</button>
+    </div>
+
+    <div class="card">
+      <div class="result-main">
+        <div class="label">Rohmaterial gesamt</div>
+        <div class="value" id="mk-summe">—<span class="unit">€</span></div>
+        <div class="extra-note" id="mk-summe-note"></div>
+      </div>
+      <div id="mk-aufschluesselung"></div>
+      <div class="mk-kursstand" id="mk-kursstand"></div>
     </div>
   </section>
 
@@ -2700,6 +2872,7 @@
     });
     zeigePdKurs();
     berechneMaterialwert();   // Rechner unten hängt an denselben Kursen
+    berechneMetallkalk();     // ebenso die Metallkalkulation
   }
 
   // Palladium klein an der Weißgold-Taste: Weißgold hat keinen eigenen Kurs,
@@ -4718,6 +4891,213 @@
   rvKCheckbox.addEventListener("change", berechneVerkleinern);
 
   berechneVerkleinern();
+
+  /* --- Modul: Metallkalkulation ----------------------------------------
+   *
+   * Was kostet das Rohmaterial für ein Stück? Mehrere Posten (Blech für die
+   * Ringschiene, Draht, Fassung …) mit Material und Gewicht, aufaddiert zum
+   * groben Materialpreis.
+   *
+   * Gerechnet wird je Posten wie im Materialwert-Rechner:
+   *
+   *   Feingewicht = Gewicht · Feingehalt / 1000
+   *   Wert        = Feingewicht · Kurs
+   *
+   * und bei Weißgold kommt der Palladiumanteil zum Palladiumkurs dazu —
+   * dieselbe Aufteilung wie in Materialwert und Goldankauf, über dieselbe
+   * Konstante WG_PD_ANTEIL, damit alle drei Module dasselbe Weißgold meinen.
+   *
+   * Die Kurse kommen aus aktuellerPreis() des Materialwert-Moduls: dort sind
+   * Abfrage, Zwischenspeicher und Handeingabe schon gelöst, und ein von Hand
+   * eingetragener Kurs wirkt damit automatisch auch hier. Ein eigener
+   * Abfrageweg wie beim Goldankauf wäre eine dritte Stelle, die dasselbe tut.
+   */
+  var MK_MATERIALIEN = ["XAG", "XAU", "XWG", "XPT"];
+
+  var mkPostenHost = document.getElementById("mk-posten");
+  var mkSummeFeld = document.getElementById("mk-summe");
+  var mkSummeNote = document.getElementById("mk-summe-note");
+  var mkAufschluesselung = document.getElementById("mk-aufschluesselung");
+  var mkKursstand = document.getElementById("mk-kursstand");
+  var mkZaehler = 0;
+
+  // Der Postenname ist freier Text und landet in innerHTML — ohne Maskierung
+  // würde ein "<" die Aufschlüsselung zerlegen.
+  function mkEscape(text) {
+    return String(text).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function mkFuelleFeingehalt(select, metall) {
+    select.innerHTML = "";
+    FEINGEHALTE[metall].forEach(function (w) {
+      var opt = document.createElement("option");
+      opt.value = String(w);
+      opt.textContent = String(w);   // ohne kt-Zusatz: Spalte soll schmal bleiben
+      select.appendChild(opt);
+    });
+    select.value = String(FEIN_START[metall]);
+  }
+
+  function mkNeuerPosten() {
+    var n = ++mkZaehler;
+    var zeile = document.createElement("div");
+    zeile.className = "mk-posten-zeile";
+    zeile.innerHTML =
+      '<div class="mk-zeile-kopf">' +
+        '<input type="text" class="mk-name" id="mk-name-' + n + '" ' +
+          'placeholder="z. B. Blech für Ringschiene" aria-label="Bezeichnung des Postens">' +
+        '<button type="button" class="zeile-entfernen" aria-label="Posten entfernen">×</button>' +
+      '</div>' +
+      '<div class="mk-zeile-werte">' +
+        '<select class="mk-material" id="mk-material-' + n + '" aria-label="Material">' +
+          MK_MATERIALIEN.map(function (m) {
+            return '<option value="' + m + '"' + (m === "XAU" ? " selected" : "") + '>' + NAME[m] + '</option>';
+          }).join("") +
+        '</select>' +
+        '<select class="mk-feingehalt" id="mk-fein-' + n + '" aria-label="Feingehalt"></select>' +
+        '<div class="mk-gramm-wrap">' +
+          '<input type="text" inputmode="decimal" enterkeyhint="done" class="mk-gramm" ' +
+            'id="mk-gramm-' + n + '" placeholder="0,0" aria-label="Gewicht in Gramm">' +
+          '<span class="mk-gramm-einheit">g</span>' +
+        '</div>' +
+        '<span class="mk-zeile-wert">—</span>' +
+      '</div>';
+
+    mkPostenHost.appendChild(zeile);
+
+    var materialSelect = zeile.querySelector(".mk-material");
+    var feinSelect = zeile.querySelector(".mk-feingehalt");
+    mkFuelleFeingehalt(feinSelect, materialSelect.value);
+
+    // Feingehalt-Liste folgt dem Material dieser einen Zeile — jede Zeile ist
+    // unabhängig, ein Wechsel in Posten 2 darf Posten 1 nicht anfassen.
+    materialSelect.addEventListener("change", function () {
+      mkFuelleFeingehalt(feinSelect, materialSelect.value);
+      berechneMetallkalk();
+    });
+    feinSelect.addEventListener("change", berechneMetallkalk);
+    zeile.querySelector(".mk-gramm").addEventListener("input", berechneMetallkalk);
+    zeile.querySelector(".mk-name").addEventListener("input", berechneMetallkalk);
+
+    zeile.querySelector(".zeile-entfernen").addEventListener("click", function () {
+      zeile.remove();
+      berechneMetallkalk();
+    });
+
+    berechneMetallkalk();
+  }
+
+  function berechneMetallkalk() {
+    // zeigeKachelwerte() ruft hier herein, sobald Kurse eintreffen. Das
+    // passiert zwar erst nach dem Aufbau dieses Moduls — aber die Reihenfolge
+    // im Skript darauf zu verlassen, wäre eine stille Falle beim Umsortieren.
+    if (!mkPostenHost) return;
+    var zeilen = Array.prototype.slice.call(mkPostenHost.querySelectorAll(".mk-posten-zeile"));
+    var summe = 0, gesamtGramm = 0, mitGewicht = 0;
+    var fehlend = {};       // Symbole, deren Kurs für einen belegten Posten fehlt
+    var benutzt = {};       // Symbole, die tatsächlich in die Summe eingehen
+    var posten = [];
+
+    zeilen.forEach(function (zeile) {
+      var metall = zeile.querySelector(".mk-material").value;
+      var promille = parseFloat(zeile.querySelector(".mk-feingehalt").value);
+      var gramm = parseDe(zeile.querySelector(".mk-gramm").value);
+      var wertFeld = zeile.querySelector(".mk-zeile-wert");
+
+      if (isNaN(gramm) || gramm <= 0 || isNaN(promille)) {
+        wertFeld.textContent = "—";
+        return;
+      }
+      mitGewicht++;
+      gesamtGramm += gramm;
+
+      // Weißgold wird über sein Feingold bewertet, der Palladiumanteil kommt
+      // zum Palladiumkurs dazu — wie im Materialwert-Rechner.
+      var istWeiss = metall === "XWG";
+      var basis = istWeiss ? "XAU" : metall;
+      var preis = aktuellerPreis(basis);
+      var pdPreis = istWeiss ? aktuellerPreis("XPD") : null;
+
+      if (preis == null) { fehlend[basis] = true; wertFeld.textContent = "—"; return; }
+      if (istWeiss && pdPreis == null) { fehlend.XPD = true; wertFeld.textContent = "—"; return; }
+
+      var fein = gramm * promille / 1000;
+      var basisWert = fein * preis;
+      var pdGramm = istWeiss ? gramm * WG_PD_ANTEIL / 100 : 0;
+      var pdWert = pdGramm * (pdPreis || 0);
+      var wert = basisWert + pdWert;
+
+      summe += wert;
+      benutzt[basis] = true;
+      if (istWeiss) benutzt.XPD = true;
+      wertFeld.textContent = fmt(wert, 2) + " €";
+
+      var name = zeile.querySelector(".mk-name").value.trim();
+      posten.push({
+        titel: name || NAME[metall] + " " + promille,
+        detail: NAME[metall] + " " + promille + " · " + fmt(gramm, 1) + " g",
+        basisWert: basisWert,
+        pd: pdGramm > 0 ? "+ Palladium " + fmt(pdGramm, 3) + " g × " + fmt(pdPreis, 2) + " €" : null,
+        pdWert: pdWert
+      });
+    });
+
+    var fehlendeNamen = Object.keys(fehlend).map(function (m) { return NAME[m]; });
+
+    if (!mitGewicht) {
+      mkSummeFeld.innerHTML = '—<span class="unit">€</span>';
+      mkSummeNote.textContent = "";
+      mkAufschluesselung.innerHTML =
+        '<div class="placeholder">Posten mit Gewicht eintragen, um den Materialpreis zu sehen.</div>';
+    } else {
+      mkSummeFeld.innerHTML = fmt(summe, 2) + '<span class="unit">€</span>';
+      mkSummeNote.textContent = posten.length +
+        (posten.length === 1 ? " Posten · " : " Posten · ") + fmt(gesamtGramm, 1) + " g gesamt";
+
+      var auf = '<div class="mk-auf">';
+      posten.forEach(function (p) {
+        auf += '<div class="mk-auf-zeile"><span>' + mkEscape(p.titel) + ' · ' + p.detail + '</span>' +
+               '<span class="mk-auf-wert">' + fmt(p.basisWert, 2) + ' €</span></div>';
+        if (p.pd) {
+          auf += '<div class="mk-auf-zeile mk-auf-unter"><span>' + p.pd + '</span>' +
+                 '<span class="mk-auf-wert">' + fmt(p.pdWert, 2) + ' €</span></div>';
+        }
+      });
+      auf += '<div class="mk-auf-zeile mk-auf-summe"><span>Rohmaterial</span>' +
+             '<span class="mk-auf-wert">' + fmt(summe, 2) + ' €</span></div></div>';
+      mkAufschluesselung.innerHTML = auf;
+    }
+
+    // Kursstand: welche Kurse gerade wirken — damit sich die Summe von Hand
+    // nachrechnen lässt — beziehungsweise welcher fehlt.
+    if (fehlendeNamen.length) {
+      mkKursstand.className = "mk-kursstand fehler";
+      mkKursstand.textContent = "Für " + fehlendeNamen.join(" und ") +
+        " liegt kein Kurs vor — im Reiter „Materialwert“ abfragen oder dort von Hand eintragen. " +
+        "Diese Posten fehlen so lange in der Summe.";
+    } else if (mitGewicht) {
+      mkKursstand.className = "mk-kursstand";
+      mkKursstand.textContent = "Gerechnet mit: " + Object.keys(benutzt).map(function (m) {
+        var p = aktuellerPreis(m);
+        return NAME[m] + " " + fmt(p, p < 10 ? 3 : 2) + " €/g";
+      }).join(" · ");
+    } else {
+      mkKursstand.className = "mk-kursstand";
+      mkKursstand.textContent = "";
+    }
+  }
+
+  document.getElementById("mk-hinzufuegen").addEventListener("click", mkNeuerPosten);
+
+  // Kurse beim Öffnen des Reiters abfragen — dieselbe Anbindung wie beim
+  // Materialwert-Reiter. zeigeKurse() hat eine eigene Sperre gegen
+  // Doppelabfragen, ein zweiter Auslöser stört also nicht.
+  document.querySelector('[data-tab="metallkalk"]').addEventListener("click", zeigeKurse);
+
+  // Ein Posten steht sofort bereit, wie beim Goldankauf.
+  mkNeuerPosten();
 })();
 </script>
 
