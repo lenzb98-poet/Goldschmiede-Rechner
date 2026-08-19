@@ -1266,13 +1266,19 @@
     -webkit-appearance: none;
   }
 
-  .mk-zeile-werte {
+  /* Form, Material, Feingehalt in einer Reihe; darunter die Maßfelder, deren
+     Anzahl von der Form abhängt (1 bis 3). Die Spaltenzahl setzt das Skript,
+     weil sie mit der Form wechselt. */
+  .mk-zeile-wahl {
     display: grid;
-    grid-template-columns: 1.05fr 0.7fr 0.72fr auto;
+    grid-template-columns: 1.1fr 1fr 0.62fr;
     gap: 0.4rem;
-    align-items: center;
+    margin-bottom: 0.5rem;
   }
 
+  .mk-zeile-masse { display: grid; gap: 0.4rem; }
+
+  .mk-form,
   .mk-material,
   .mk-feingehalt {
     font-size: 0.9rem;
@@ -1284,11 +1290,25 @@
     min-width: 0;
   }
 
-  .mk-gramm-wrap { position: relative; min-width: 0; }
+  /* Winziges Etikett über jedem Maßfeld: ohne es wäre bei "40 / 25 / 1,2"
+     nicht zu sehen, welche Zahl Länge, Breite oder Stärke ist — und ein
+     Platzhalter im Feld verschwindet ja, sobald etwas drinsteht. */
+  .mk-mass-label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-bottom: 0.15rem;
+    padding-left: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-  input.mk-gramm {
+  .mk-mass-eingabe { position: relative; min-width: 0; }
+
+  input.mk-mass-wert {
     font-size: 0.9rem;
-    padding: 0.45rem 1.3rem 0.45rem 0.4rem;
+    padding: 0.45rem 1.7rem 0.45rem 0.4rem;
     border-radius: 0.5rem;
     border: 2px solid var(--border);
     background: var(--bg);
@@ -1299,31 +1319,43 @@
     -webkit-appearance: none;
   }
 
-  .mk-gramm-einheit {
+  .mk-mass-einheit {
     position: absolute;
     right: 0.4rem;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     color: var(--text-dim);
     pointer-events: none;
   }
 
   input.mk-name:focus,
+  .mk-form:focus,
   .mk-material:focus,
   .mk-feingehalt:focus,
-  input.mk-gramm:focus {
+  input.mk-mass-wert:focus {
     outline: none;
     border-color: var(--gold);
   }
 
+  /* Ergebnis der Zeile: erst das abgeleitete Gewicht, dann der Preis. Das
+     Gewicht mitzuzeigen ist der Punkt der Formeingabe — man will sehen,
+     was aus den Maßen geworden ist. */
+  .mk-zeile-fuss {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 0.55rem;
+    margin-top: 0.5rem;
+    font-size: 0.87rem;
+  }
+
+  .mk-zeile-gewicht { color: var(--text-dim); }
+
   .mk-zeile-wert {
-    font-size: 0.95rem;
     font-weight: 600;
     color: var(--gold);
-    text-align: right;
     white-space: nowrap;
-    min-width: 3.4rem;
   }
 
   /* --- Metallkalkulation: Aufschlüsselung + Kursstand ------------------ */
@@ -1788,8 +1820,9 @@
   <section class="panel" id="panel-metallkalk">
     <div class="card">
       <div class="mk-einleitung">
-        Was geht an Rohmaterial in das Stück? Jeden Posten einzeln eintragen —
-        Blech, Draht, Fassung — und unten steht, was das Material kostet.
+        Was geht an Rohmaterial in das Stück? Je Posten die Form wählen und
+        deren Maße eintragen — das Gewicht kommt über Volumen und Dichte der
+        Legierung, unten steht der Materialpreis.
       </div>
       <div id="mk-posten"></div>
       <button type="button" class="add-zeile" id="mk-hinzufuegen">+ Posten hinzufügen</button>
@@ -4914,6 +4947,73 @@
    */
   var MK_MATERIALIEN = ["XAG", "XAU", "XWG", "XPT"];
 
+  /* Grundformen des Halbzeugs. Statt das Gewicht zu wiegen, gibt man die
+   * Maße ein — das Gewicht kommt über Volumen und Dichte der Legierung:
+   *
+   *   Gewicht [g] = Volumen [mm³] / 1000 · Dichte [g/cm³]
+   *
+   * Die Dichten stehen schon in DICHTE (Materialwert-Modul), gerechnet wird
+   * also überall mit denselben Werten. "Gewicht" bleibt als Form drin: für
+   * ein gewogenes Reststück oder ein Fertigteil ist die Waage genauer als
+   * jede Formel — dort entfällt der Umweg über die Dichte ganz.
+   *
+   * volumen() bekommt die Maße in mm und liefert mm³, oder null, wenn die
+   * Maße keinen Körper ergeben (Rohrwand dicker als der Radius).
+   */
+  var MK_FORMEN = [
+    { id: "blech", kurz: "Blech", name: "Blech",
+      masse: [ { id: "l", label: "Länge",  ph: "40" },
+               { id: "b", label: "Breite", ph: "25" },
+               { id: "s", label: "Stärke", ph: "1,2" } ],
+      volumen: function (m) { return m.l * m.b * m.s; } },
+
+    { id: "runddraht", kurz: "Runddraht", name: "Runddraht",
+      masse: [ { id: "d", label: "Ø",     ph: "1,5" },
+               { id: "l", label: "Länge", ph: "80" } ],
+      volumen: function (m) { return Math.PI * Math.pow(m.d / 2, 2) * m.l; } },
+
+    { id: "vierkant", kurz: "Vierkant", name: "Vierkantdraht",
+      masse: [ { id: "a", label: "Kante", ph: "1,5" },
+               { id: "l", label: "Länge", ph: "80" } ],
+      volumen: function (m) { return m.a * m.a * m.l; } },
+
+    // Halbrund: flache Unterseite, halbrunde Oberseite — also ein längs
+    // halbierter Runddraht vom Durchmesser der Breite.
+    { id: "halbrund", kurz: "Halbrund", name: "Halbrunddraht",
+      masse: [ { id: "b", label: "Breite", ph: "3" },
+               { id: "l", label: "Länge",  ph: "60" } ],
+      volumen: function (m) { return Math.PI * Math.pow(m.b / 2, 2) / 2 * m.l; } },
+
+    { id: "rohr", kurz: "Rohr", name: "Rohr",
+      masse: [ { id: "d", label: "Ø außen", ph: "6" },
+               { id: "w", label: "Wand",    ph: "0,5" },
+               { id: "l", label: "Länge",   ph: "20" } ],
+      volumen: function (m) {
+        var ra = m.d / 2, ri = ra - m.w;
+        if (ri <= 0) return null;          // Wand füllt den Querschnitt ganz aus
+        return Math.PI * (ra * ra - ri * ri) * m.l;
+      } },
+
+    { id: "kugel", kurz: "Kugel", name: "Kugel",
+      masse: [ { id: "d", label: "Ø", ph: "4" } ],
+      volumen: function (m) { return 4 / 3 * Math.PI * Math.pow(m.d / 2, 3); } },
+
+    // Sonderfall ohne Geometrie: die Zahl IST das Gewicht.
+    { id: "gewicht", kurz: "Gewicht", name: "Gewicht",
+      einheit: "g",
+      masse: [ { id: "g", label: "Gewicht", ph: "5,0" } ],
+      volumen: null }
+  ];
+
+  function mkForm(id) {
+    return MK_FORMEN.filter(function (f) { return f.id === id; })[0] || MK_FORMEN[0];
+  }
+
+  // Maßangabe ohne Ballast: 40 statt 40,00, aber 1,2 und 1,25 bleiben stehen.
+  function mkMassZahl(v) {
+    return fmt(v, 2).replace(/,?0+$/, "");
+  }
+
   var mkPostenHost = document.getElementById("mk-posten");
   var mkSummeFeld = document.getElementById("mk-summe");
   var mkSummeNote = document.getElementById("mk-summe-note");
@@ -4940,6 +5040,23 @@
     select.value = String(FEIN_START[metall]);
   }
 
+  // Maßfelder für eine Form aufbauen. Wird bei jedem Formwechsel neu
+  // gerufen — die Felder unterscheiden sich in Anzahl und Beschriftung.
+  function mkBaueMassfelder(host, form) {
+    host.style.gridTemplateColumns = "repeat(" + form.masse.length + ", 1fr)";
+    host.innerHTML = form.masse.map(function (m) {
+      return '<div class="mk-mass">' +
+        '<span class="mk-mass-label">' + m.label + '</span>' +
+        '<div class="mk-mass-eingabe">' +
+          '<input type="text" inputmode="decimal" enterkeyhint="next" class="mk-mass-wert" ' +
+            'data-mass="' + m.id + '" placeholder="' + m.ph + '" ' +
+            'aria-label="' + m.label + ' in ' + (form.einheit || "mm") + '">' +
+          '<span class="mk-mass-einheit">' + (form.einheit || "mm") + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
   function mkNeuerPosten() {
     var n = ++mkZaehler;
     var zeile = document.createElement("div");
@@ -4950,26 +5067,42 @@
           'placeholder="z. B. Blech für Ringschiene" aria-label="Bezeichnung des Postens">' +
         '<button type="button" class="zeile-entfernen" aria-label="Posten entfernen">×</button>' +
       '</div>' +
-      '<div class="mk-zeile-werte">' +
+      '<div class="mk-zeile-wahl">' +
+        '<select class="mk-form" id="mk-form-' + n + '" aria-label="Form des Halbzeugs">' +
+          MK_FORMEN.map(function (f) {
+            return '<option value="' + f.id + '">' + f.kurz + '</option>';
+          }).join("") +
+        '</select>' +
         '<select class="mk-material" id="mk-material-' + n + '" aria-label="Material">' +
           MK_MATERIALIEN.map(function (m) {
             return '<option value="' + m + '"' + (m === "XAU" ? " selected" : "") + '>' + NAME[m] + '</option>';
           }).join("") +
         '</select>' +
         '<select class="mk-feingehalt" id="mk-fein-' + n + '" aria-label="Feingehalt"></select>' +
-        '<div class="mk-gramm-wrap">' +
-          '<input type="text" inputmode="decimal" enterkeyhint="done" class="mk-gramm" ' +
-            'id="mk-gramm-' + n + '" placeholder="0,0" aria-label="Gewicht in Gramm">' +
-          '<span class="mk-gramm-einheit">g</span>' +
-        '</div>' +
+      '</div>' +
+      '<div class="mk-zeile-masse"></div>' +
+      '<div class="mk-zeile-fuss">' +
+        '<span class="mk-zeile-gewicht">—</span>' +
         '<span class="mk-zeile-wert">—</span>' +
       '</div>';
 
     mkPostenHost.appendChild(zeile);
 
+    var formSelect = zeile.querySelector(".mk-form");
     var materialSelect = zeile.querySelector(".mk-material");
     var feinSelect = zeile.querySelector(".mk-feingehalt");
+    var masseHost = zeile.querySelector(".mk-zeile-masse");
+
     mkFuelleFeingehalt(feinSelect, materialSelect.value);
+    mkBaueMassfelder(masseHost, mkForm(formSelect.value));
+
+    formSelect.addEventListener("change", function () {
+      // Maße der alten Form passen nicht zur neuen — die Felder werden neu
+      // aufgebaut und beginnen leer. Ein "Länge" aus dem Blech als "Ø" eines
+      // Drahtes weiterzureichen wäre eine stille Falschangabe.
+      mkBaueMassfelder(masseHost, mkForm(formSelect.value));
+      berechneMetallkalk();
+    });
 
     // Feingehalt-Liste folgt dem Material dieser einen Zeile — jede Zeile ist
     // unabhängig, ein Wechsel in Posten 2 darf Posten 1 nicht anfassen.
@@ -4978,8 +5111,10 @@
       berechneMetallkalk();
     });
     feinSelect.addEventListener("change", berechneMetallkalk);
-    zeile.querySelector(".mk-gramm").addEventListener("input", berechneMetallkalk);
     zeile.querySelector(".mk-name").addEventListener("input", berechneMetallkalk);
+    // Die Maßfelder werden ausgetauscht — deshalb am Behälter lauschen
+    // statt an den einzelnen Feldern, die es später gar nicht mehr gibt.
+    masseHost.addEventListener("input", berechneMetallkalk);
 
     zeile.querySelector(".zeile-entfernen").addEventListener("click", function () {
       zeile.remove();
@@ -5003,15 +5138,42 @@
     zeilen.forEach(function (zeile) {
       var metall = zeile.querySelector(".mk-material").value;
       var promille = parseFloat(zeile.querySelector(".mk-feingehalt").value);
-      var gramm = parseDe(zeile.querySelector(".mk-gramm").value);
+      var form = mkForm(zeile.querySelector(".mk-form").value);
       var wertFeld = zeile.querySelector(".mk-zeile-wert");
+      var gewichtFeld = zeile.querySelector(".mk-zeile-gewicht");
 
-      if (isNaN(gramm) || gramm <= 0 || isNaN(promille)) {
+      function leer(hinweis) {
+        gewichtFeld.textContent = hinweis || "—";
         wertFeld.textContent = "—";
-        return;
       }
+
+      // Maße einsammeln; erst wenn ALLE gefüllt und brauchbar sind, ergibt
+      // sich ein Körper — halb ausgefüllt wäre jede Zahl geraten.
+      var masse = {}, vollstaendig = true;
+      form.masse.forEach(function (m) {
+        var feld = zeile.querySelector('.mk-mass-wert[data-mass="' + m.id + '"]');
+        var v = feld ? parseDe(feld.value) : NaN;
+        if (isNaN(v) || v <= 0) { vollstaendig = false; return; }
+        masse[m.id] = v;
+      });
+      if (!vollstaendig || isNaN(promille)) { leer(); return; }
+
+      var gramm;
+      if (!form.volumen) {
+        gramm = masse.g;                      // Form "Gewicht": direkt gewogen
+      } else {
+        var volumen = form.volumen(masse);    // mm³
+        if (volumen == null || volumen <= 0) {
+          leer("Maße ergeben keinen Körper");
+          return;
+        }
+        var dichte = DICHTE[metall][promille];
+        gramm = volumen / 1000 * dichte;      // mm³ -> cm³ -> g
+      }
+
       mitGewicht++;
       gesamtGramm += gramm;
+      gewichtFeld.textContent = fmt(gramm, 2) + " g";
 
       // Weißgold wird über sein Feingold bewertet, der Palladiumanteil kommt
       // zum Palladiumkurs dazu — wie im Materialwert-Rechner.
@@ -5034,10 +5196,19 @@
       if (istWeiss) benutzt.XPD = true;
       wertFeld.textContent = fmt(wert, 2) + " €";
 
+      // Maße mit in die Aufschlüsselung: sonst stünde dort nur ein Gewicht,
+      // dessen Herkunft man nicht mehr sieht.
+      var masseText = form.volumen
+        ? form.name + " " + form.masse.map(function (m) { return mkMassZahl(masse[m.id]); }).join(" × ") + " mm"
+        : form.name;
+
+      // Ohne eigenen Namen tritt die Maßangabe an dessen Stelle — dann darf
+      // sie im Detail nicht noch einmal auftauchen.
       var name = zeile.querySelector(".mk-name").value.trim();
       posten.push({
-        titel: name || NAME[metall] + " " + promille,
-        detail: NAME[metall] + " " + promille + " · " + fmt(gramm, 1) + " g",
+        titel: name || masseText,
+        detail: (name ? masseText + " · " : "") +
+                NAME[metall] + " " + promille + " · " + fmt(gramm, 1) + " g",
         basisWert: basisWert,
         pd: pdGramm > 0 ? "+ Palladium " + fmt(pdGramm, 3) + " g × " + fmt(pdPreis, 2) + " €" : null,
         pdWert: pdWert
@@ -5050,7 +5221,7 @@
       mkSummeFeld.innerHTML = '—<span class="unit">€</span>';
       mkSummeNote.textContent = "";
       mkAufschluesselung.innerHTML =
-        '<div class="placeholder">Posten mit Gewicht eintragen, um den Materialpreis zu sehen.</div>';
+        '<div class="placeholder">Maße eintragen, um den Materialpreis zu sehen.</div>';
     } else {
       mkSummeFeld.innerHTML = fmt(summe, 2) + '<span class="unit">€</span>';
       mkSummeNote.textContent = posten.length +
