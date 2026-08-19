@@ -1402,6 +1402,35 @@
   }
 
   .mk-kursstand.fehler { color: var(--danger); }
+
+  /* Der Händler-Knopf sitzt in der Ecke der Ergebniskarte statt neben der
+     Zahl wie im Goldankauf: die große mittige Summe bleibt so, wie sie ist,
+     und der Knopf drängt sich nicht dazwischen. Gleiche Optik, gleiche
+     Bedienung — nur der Platz ist ein anderer. */
+  .mk-ergebnis-karte { position: relative; }
+
+  .mk-ergebnis-karte .haendler-knopf {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1;
+  }
+
+  /* Preiskette im Händlerbereich — gleiche Zeilenoptik wie die
+     Aufschlüsselung darüber, damit beide zusammen gelesen werden. */
+  .mk-endkosten .mk-auf-zeile { padding: 0.34rem 0; }
+  .mk-endkosten .mk-auf-endpreis {
+    margin-top: 0.4rem;
+    padding-top: 0.6rem;
+    border-top: 2px solid var(--border);
+    font-size: 1rem;
+    color: var(--text);
+  }
+  .mk-endkosten .mk-auf-endpreis .mk-auf-wert { color: var(--gold); }
+
+  /* Abstand zwischen der Preiskette und den Feldern, die sie erzeugen —
+     sonst klebt "Endpreis" direkt an der Beschriftung darunter. */
+  #mk-endkosten { margin-bottom: 1.6rem; }
 </style>
 </head>
 <body>
@@ -1819,6 +1848,15 @@
 
   <section class="panel" id="panel-metallkalk">
     <div class="card">
+      <label class="check-row" for="mk-haendler-an">
+        <input type="checkbox" id="mk-haendler-an">
+        <span>Händlerkalkulation</span>
+      </label>
+      <div class="field-hint" style="margin-bottom:1.1rem">
+        Blendet unten den Knopf für Kalkulationsfaktor, Aufschlag und eigene
+        Kurse ein. Aus: es steht nur der reine Materialpreis da.
+      </div>
+
       <div class="mk-einleitung">
         Was geht an Rohmaterial in das Stück? Je Posten die Form wählen und
         deren Maße eintragen — das Gewicht kommt über Volumen und Dichte der
@@ -1828,13 +1866,79 @@
       <button type="button" class="add-zeile" id="mk-hinzufuegen">+ Posten hinzufügen</button>
     </div>
 
-    <div class="card">
+    <div class="card mk-ergebnis-karte">
+      <button type="button" class="haendler-knopf" id="mk-haendler-knopf" hidden
+              aria-expanded="false" aria-controls="mk-haendler-bereich"
+              aria-label="Händler-Bereich öffnen">
+        <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
+          <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="10" cy="10" r="4" fill="#d9705e"/>
+        </svg>
+      </button>
+
       <div class="result-main">
-        <div class="label">Rohmaterial gesamt</div>
+        <div class="label" id="mk-summe-label">Rohmaterial gesamt</div>
         <div class="value" id="mk-summe">—<span class="unit">€</span></div>
         <div class="extra-note" id="mk-summe-note"></div>
       </div>
       <div id="mk-aufschluesselung"></div>
+
+      <div class="haendler-bereich" id="mk-haendler-bereich" hidden>
+        <div id="mk-endkosten"></div>
+
+        <div class="field">
+          <label for="mk-faktor">Kalkulationsfaktor</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="mk-faktor" placeholder="1,0">
+            <span class="unit">×</span>
+          </div>
+          <div class="field-hint">Das Rohmaterial wird damit malgenommen. Leer = 1,0.</div>
+        </div>
+        <div class="field">
+          <label for="mk-aufschlag">Aufschlag</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="mk-aufschlag" placeholder="0,00">
+            <span class="unit">€</span>
+          </div>
+          <div class="field-hint">Kommt nach dem Faktor dazu. Für einen Abzug mit Minus eintragen.</div>
+        </div>
+
+        <div class="field-hint" style="margin: 1.4rem 0 0.6rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+          Eigene Kurse nur für dieses Modul — etwa der Preis, zu dem das
+          Material tatsächlich eingekauft wurde. Feld leeren, um wieder den
+          abgefragten Kurs zu verwenden.
+        </div>
+        <div class="field">
+          <label for="mk-kurs-XAU">Gold</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="mk-kurs-XAU" placeholder="—">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="mk-kurs-XAG">Silber</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="mk-kurs-XAG" placeholder="—">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="mk-kurs-XPT">Platin</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="mk-kurs-XPT" placeholder="—">
+            <span class="unit">€/g</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="mk-kurs-XPD">Palladium</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="mk-kurs-XPD" placeholder="—">
+            <span class="unit">€/g</span>
+          </div>
+          <div class="field-hint">Wird für den Palladiumanteil in Weißgold gebraucht.</div>
+        </div>
+      </div>
+
       <div class="mk-kursstand" id="mk-kursstand"></div>
     </div>
   </section>
@@ -2904,8 +3008,9 @@
         v == null ? "—" : fmt(v, v < 10 ? 3 : 2);
     });
     zeigePdKurs();
-    berechneMaterialwert();   // Rechner unten hängt an denselben Kursen
-    berechneMetallkalk();     // ebenso die Metallkalkulation
+    berechneMaterialwert();      // Rechner unten hängt an denselben Kursen
+    mkZeigeKursPlatzhalter();    // Händlerfelder zeigen den abgefragten Kurs
+    berechneMetallkalk();        // ebenso die Metallkalkulation
   }
 
   // Palladium klein an der Weißgold-Taste: Weißgold hat keinen eigenen Kurs,
@@ -5016,10 +5121,41 @@
 
   var mkPostenHost = document.getElementById("mk-posten");
   var mkSummeFeld = document.getElementById("mk-summe");
+  var mkSummeLabel = document.getElementById("mk-summe-label");
   var mkSummeNote = document.getElementById("mk-summe-note");
   var mkAufschluesselung = document.getElementById("mk-aufschluesselung");
   var mkKursstand = document.getElementById("mk-kursstand");
   var mkZaehler = 0;
+
+  var mkHaendlerBox = document.getElementById("mk-haendler-an");
+  var mkHaendlerKnopf = document.getElementById("mk-haendler-knopf");
+  var mkHaendlerBereich = document.getElementById("mk-haendler-bereich");
+  var mkEndkosten = document.getElementById("mk-endkosten");
+  var mkFaktorInput = document.getElementById("mk-faktor");
+  var mkAufschlagInput = document.getElementById("mk-aufschlag");
+
+  var MK_KURS_METALLE = ["XAU", "XAG", "XPT", "XPD"];
+  var MK_FAKTOR_VORGABE = 1;
+  var MK_AUFSCHLAG_VORGABE = 0;
+  var MK_SPEICHER = "metallkalkulation-v1";
+
+  /* Eigene Kurse statt Mitbenutzung von handKurse aus dem Materialwert-Modul:
+   * dort ist die Handeingabe ein "der abgefragte Kurs stimmt nicht"-Korrektiv
+   * und wirkt überall. Hier geht es um etwas anderes — den Preis, zu dem
+   * DIESER Händler eingekauft hat. Der darf die Anzeige der Tageskurse nicht
+   * verstellen. Fehlt ein eigener Wert, gilt weiterhin aktuellerPreis(), also
+   * Handeingabe vor Abfrage wie sonst auch. */
+  var mkHandKurse = { XAU: null, XAG: null, XPT: null, XPD: null };
+
+  function mkKurs(m) {
+    return mkHandKurse[m] != null ? mkHandKurse[m] : aktuellerPreis(m);
+  }
+
+  function mkZahlOderVorgabe(roh, vorgabe) {
+    if (typeof roh !== "string" || roh.trim() === "") return vorgabe;
+    var v = parseDe(roh);
+    return isNaN(v) ? vorgabe : v;
+  }
 
   // Der Postenname ist freier Text und landet in innerHTML — ohne Maskierung
   // würde ein "<" die Aufschlüsselung zerlegen.
@@ -5122,6 +5258,7 @@
     });
 
     berechneMetallkalk();
+    return zeile;      // mkLadeZustand() füllt die Zeile danach aus
   }
 
   function berechneMetallkalk() {
@@ -5179,8 +5316,8 @@
       // zum Palladiumkurs dazu — wie im Materialwert-Rechner.
       var istWeiss = metall === "XWG";
       var basis = istWeiss ? "XAU" : metall;
-      var preis = aktuellerPreis(basis);
-      var pdPreis = istWeiss ? aktuellerPreis("XPD") : null;
+      var preis = mkKurs(basis);
+      var pdPreis = istWeiss ? mkKurs("XPD") : null;
 
       if (preis == null) { fehlend[basis] = true; wertFeld.textContent = "—"; return; }
       if (istWeiss && pdPreis == null) { fehlend.XPD = true; wertFeld.textContent = "—"; return; }
@@ -5217,15 +5354,24 @@
 
     var fehlendeNamen = Object.keys(fehlend).map(function (m) { return NAME[m]; });
 
+    // Händlerkette: Rohmaterial × Faktor + Aufschlag. Ohne Händlermodus
+    // bleibt der Endpreis gleich dem Rohmaterial.
+    var haendlerAn = mkHaendlerBox.checked;
+    var faktor = mkZahlOderVorgabe(mkFaktorInput.value, MK_FAKTOR_VORGABE);
+    var aufschlag = mkZahlOderVorgabe(mkAufschlagInput.value, MK_AUFSCHLAG_VORGABE);
+    var nachFaktor = summe * faktor;
+    var endpreis = nachFaktor + aufschlag;
+
     if (!mitGewicht) {
       mkSummeFeld.innerHTML = '—<span class="unit">€</span>';
       mkSummeNote.textContent = "";
       mkAufschluesselung.innerHTML =
         '<div class="placeholder">Maße eintragen, um den Materialpreis zu sehen.</div>';
+      mkEndkosten.innerHTML = "";
     } else {
-      mkSummeFeld.innerHTML = fmt(summe, 2) + '<span class="unit">€</span>';
-      mkSummeNote.textContent = posten.length +
-        (posten.length === 1 ? " Posten · " : " Posten · ") + fmt(gesamtGramm, 1) + " g gesamt";
+      mkSummeFeld.innerHTML = fmt(haendlerAn ? endpreis : summe, 2) + '<span class="unit">€</span>';
+      mkSummeNote.textContent = posten.length + " Posten · " + fmt(gesamtGramm, 1) + " g gesamt" +
+        (haendlerAn ? " · Rohmaterial " + fmt(summe, 2) + " €" : "");
 
       var auf = '<div class="mk-auf">';
       posten.forEach(function (p) {
@@ -5239,25 +5385,190 @@
       auf += '<div class="mk-auf-zeile mk-auf-summe"><span>Rohmaterial</span>' +
              '<span class="mk-auf-wert">' + fmt(summe, 2) + ' €</span></div></div>';
       mkAufschluesselung.innerHTML = auf;
+
+      // Die Preiskette steht im Händlerbereich — dort, wo auch die Zahlen
+      // stehen, die sie erzeugen.
+      mkEndkosten.innerHTML =
+        '<div class="mk-auf mk-endkosten" style="margin-top:0;padding-top:0;border-top:none">' +
+          '<div class="mk-auf-zeile"><span>Rohmaterial</span>' +
+            '<span class="mk-auf-wert">' + fmt(summe, 2) + ' €</span></div>' +
+          '<div class="mk-auf-zeile"><span>× Faktor ' + mkMassZahl(faktor) + '</span>' +
+            '<span class="mk-auf-wert">' + fmt(nachFaktor, 2) + ' €</span></div>' +
+          '<div class="mk-auf-zeile"><span>' + (aufschlag < 0 ? "Abschlag − " : "Aufschlag + ") +
+            fmt(Math.abs(aufschlag), 2) + ' €</span>' +
+            '<span class="mk-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
+          '<div class="mk-auf-zeile mk-auf-endpreis"><span>Endpreis</span>' +
+            '<span class="mk-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
+        '</div>';
     }
+
+    mkSummeLabel.textContent = haendlerAn ? "Endpreis" : "Rohmaterial gesamt";
 
     // Kursstand: welche Kurse gerade wirken — damit sich die Summe von Hand
     // nachrechnen lässt — beziehungsweise welcher fehlt.
     if (fehlendeNamen.length) {
       mkKursstand.className = "mk-kursstand fehler";
       mkKursstand.textContent = "Für " + fehlendeNamen.join(" und ") +
-        " liegt kein Kurs vor — im Reiter „Materialwert“ abfragen oder dort von Hand eintragen. " +
-        "Diese Posten fehlen so lange in der Summe.";
+        " liegt kein Kurs vor — im Reiter „Materialwert“ abfragen" +
+        (haendlerAn ? " oder hier im Händlerbereich von Hand eintragen." : ".") +
+        " Diese Posten fehlen so lange in der Summe.";
     } else if (mitGewicht) {
       mkKursstand.className = "mk-kursstand";
       mkKursstand.textContent = "Gerechnet mit: " + Object.keys(benutzt).map(function (m) {
-        var p = aktuellerPreis(m);
-        return NAME[m] + " " + fmt(p, p < 10 ? 3 : 2) + " €/g";
+        var p = mkKurs(m);
+        return NAME[m] + " " + fmt(p, p < 10 ? 3 : 2) + " €/g" +
+          (mkHandKurse[m] != null ? " (eigener Kurs)" : "");
       }).join(" · ");
     } else {
       mkKursstand.className = "mk-kursstand";
       mkKursstand.textContent = "";
     }
+
+    mkSpeichern();
+  }
+
+  /* --- Metallkalkulation: im Browser behalten --------------------------
+   * Eine angefangene Kalkulation soll den Reiterwechsel und das Schließen
+   * der Seite überleben — anders als die übrigen Rechner ist das hier keine
+   * Momentaufnahme, sondern die Vorkalkulation für ein bestimmtes Stück.
+   * Gespeichert wird der EINGABEZUSTAND, nicht die Ergebnisse: Kurse ändern
+   * sich, die Posten nicht. */
+  function mkSammleZustand() {
+    var zeilen = Array.prototype.slice.call(mkPostenHost.querySelectorAll(".mk-posten-zeile"));
+    return {
+      haendler: mkHaendlerBox.checked,
+      bereichOffen: !mkHaendlerBereich.hidden,
+      faktor: mkFaktorInput.value,
+      aufschlag: mkAufschlagInput.value,
+      kurse: MK_KURS_METALLE.reduce(function (o, m) {
+        o[m] = document.getElementById("mk-kurs-" + m).value;
+        return o;
+      }, {}),
+      posten: zeilen.map(function (zeile) {
+        var form = mkForm(zeile.querySelector(".mk-form").value);
+        var masse = {};
+        form.masse.forEach(function (m) {
+          var feld = zeile.querySelector('.mk-mass-wert[data-mass="' + m.id + '"]');
+          if (feld) masse[m.id] = feld.value;
+        });
+        return {
+          name: zeile.querySelector(".mk-name").value,
+          form: form.id,
+          material: zeile.querySelector(".mk-material").value,
+          fein: zeile.querySelector(".mk-feingehalt").value,
+          masse: masse
+        };
+      })
+    };
+  }
+
+  function mkSpeichern() {
+    if (mkLaedt) return;          // beim Wiederherstellen nicht zurückschreiben
+    try {
+      localStorage.setItem(MK_SPEICHER, JSON.stringify(mkSammleZustand()));
+    } catch (e) {
+      // Speicher gesperrt oder voll (privater Modus). Der Rechner läuft
+      // weiter, nur das Merken über die Sitzung hinaus entfällt.
+    }
+  }
+
+  var mkLaedt = false;
+
+  function mkLadeZustand() {
+    var d;
+    try {
+      var roh = localStorage.getItem(MK_SPEICHER);
+      if (!roh) return false;
+      d = JSON.parse(roh);
+    } catch (e) {
+      return false;
+    }
+    if (!d || !Array.isArray(d.posten) || !d.posten.length) return false;
+
+    mkLaedt = true;
+    try {
+      mkHaendlerBox.checked = !!d.haendler;
+      mkFaktorInput.value = typeof d.faktor === "string" ? d.faktor : "";
+      mkAufschlagInput.value = typeof d.aufschlag === "string" ? d.aufschlag : "";
+      MK_KURS_METALLE.forEach(function (m) {
+        var wert = d.kurse && typeof d.kurse[m] === "string" ? d.kurse[m] : "";
+        document.getElementById("mk-kurs-" + m).value = wert;
+        var v = parseDe(wert);
+        mkHandKurse[m] = (wert.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
+      });
+
+      mkPostenHost.innerHTML = "";
+      d.posten.forEach(function (p) {
+        var zeile = mkNeuerPosten();
+        if (!zeile) return;
+        zeile.querySelector(".mk-name").value = typeof p.name === "string" ? p.name : "";
+
+        // Form und Material erst setzen, dann die abhängigen Listen/Felder
+        // neu aufbauen — sonst stünden Feingehalt und Maßfelder noch auf der
+        // Vorgabe, und die gespeicherten Werte fänden kein Ziel.
+        var formSelect = zeile.querySelector(".mk-form");
+        if (mkForm(p.form).id === p.form) formSelect.value = p.form;
+        mkBaueMassfelder(zeile.querySelector(".mk-zeile-masse"), mkForm(formSelect.value));
+
+        var materialSelect = zeile.querySelector(".mk-material");
+        if (MK_MATERIALIEN.indexOf(p.material) >= 0) materialSelect.value = p.material;
+        var feinSelect = zeile.querySelector(".mk-feingehalt");
+        mkFuelleFeingehalt(feinSelect, materialSelect.value);
+        if (FEINGEHALTE[materialSelect.value].indexOf(parseFloat(p.fein)) >= 0) feinSelect.value = p.fein;
+
+        mkForm(formSelect.value).masse.forEach(function (m) {
+          var feld = zeile.querySelector('.mk-mass-wert[data-mass="' + m.id + '"]');
+          if (feld && p.masse && typeof p.masse[m.id] === "string") feld.value = p.masse[m.id];
+        });
+      });
+
+      mkHaendlerBereichSetzen(!!d.bereichOffen);
+    } finally {
+      mkLaedt = false;
+    }
+    return true;
+  }
+
+  function mkHaendlerBereichSetzen(offen) {
+    // Der Bereich ist nur im Händlermodus erreichbar — ist der aus, bleibt er
+    // zu, sonst stünden Faktor und Kurse da, ohne zu wirken.
+    var moeglich = mkHaendlerBox.checked;
+    mkHaendlerKnopf.hidden = !moeglich;
+    mkHaendlerBereich.hidden = !(moeglich && offen);
+    mkHaendlerKnopf.setAttribute("aria-expanded", String(moeglich && offen));
+  }
+
+  mkHaendlerBox.addEventListener("change", function () {
+    mkHaendlerBereichSetzen(false);
+    berechneMetallkalk();
+  });
+
+  mkHaendlerKnopf.addEventListener("click", function () {
+    mkHaendlerBereichSetzen(mkHaendlerBereich.hidden);
+    mkSpeichern();
+  });
+
+  [mkFaktorInput, mkAufschlagInput].forEach(function (el) {
+    el.addEventListener("input", berechneMetallkalk);
+  });
+
+  MK_KURS_METALLE.forEach(function (m) {
+    document.getElementById("mk-kurs-" + m).addEventListener("input", function () {
+      var v = parseDe(this.value);
+      mkHandKurse[m] = (this.value.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
+      berechneMetallkalk();
+    });
+  });
+
+  // Abgefragte Kurse als Platzhalter in die Händlerfelder: solange nichts
+  // eingetragen ist, sieht man dort den Wert, mit dem gerechnet wird.
+  function mkZeigeKursPlatzhalter() {
+    if (!mkFaktorInput) return;    // wird aus zeigeKachelwerte() gerufen, s. dort
+    MK_KURS_METALLE.forEach(function (m) {
+      var p = aktuellerPreis(m);
+      var feld = document.getElementById("mk-kurs-" + m);
+      if (feld) feld.placeholder = p == null ? "—" : fmt(p, p < 10 ? 3 : 2);
+    });
   }
 
   document.getElementById("mk-hinzufuegen").addEventListener("click", mkNeuerPosten);
@@ -5267,8 +5578,12 @@
   // Doppelabfragen, ein zweiter Auslöser stört also nicht.
   document.querySelector('[data-tab="metallkalk"]').addEventListener("click", zeigeKurse);
 
-  // Ein Posten steht sofort bereit, wie beim Goldankauf.
-  mkNeuerPosten();
+  // Gespeicherte Kalkulation wiederherstellen; sonst ein leerer Posten,
+  // damit sofort etwas dasteht — wie beim Goldankauf.
+  if (!mkLadeZustand()) mkNeuerPosten();
+  mkHaendlerBereichSetzen(!mkHaendlerBereich.hidden);
+  mkZeigeKursPlatzhalter();
+  berechneMetallkalk();
 })();
 </script>
 
