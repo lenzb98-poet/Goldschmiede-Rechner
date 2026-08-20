@@ -120,6 +120,92 @@
     border-radius: 1rem;
     padding: 1.2rem;
     margin-bottom: 1rem;
+    /* Bezug für den Formel-Knopf in der Ecke. Alle bereits absolut gesetzten
+       Elemente (Einheiten-Badges, Verlaufsmarken) haben ihren eigenen
+       relativen Vorfahren, hier ändert sich für sie also nichts. */
+    position: relative;
+  }
+
+  /* --- Formel-Knopf: roter Punkt in der Ecke jeder Ergebniskarte -------
+     Antippen klappt den Rechenweg auf — erst die Formel mit Formelzeichen,
+     darunter dieselbe Zeile mit den eingesetzten Zahlen. So lässt sich jedes
+     Ergebnis von Hand nachvollziehen, ohne dass die Karte im Normalfall mit
+     Herleitung zugestellt ist. */
+  .formel-knopf {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .formel-knopf::before {
+    content: "";
+    width: 0.62rem;
+    height: 0.62rem;
+    border-radius: 50%;
+    background: var(--danger);
+  }
+
+  .formel-knopf[aria-expanded="true"] { border-color: var(--gold-dim); }
+
+  /* Karten, die oben rechts schon den Händler-Knopf tragen: der Formel-Punkt
+     rückt daneben, statt sich darüberzulegen. */
+  .mk-ergebnis-karte .formel-knopf,
+  .ga-ergebnis-karte .formel-knopf { right: 4.3rem; }
+
+  .formel-box {
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .formel-titel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 0.8rem;
+  }
+
+  .formel-block { margin-bottom: 1rem; }
+  .formel-block:last-child { margin-bottom: 0; }
+
+  .formel-block-titel {
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+  }
+
+  .formel-zeile {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text-dim);
+    word-break: break-word;
+    padding-left: 0.9rem;
+    text-indent: -0.9rem;
+  }
+
+  .formel-zeile.formel-symbol { color: var(--text); }
+  .formel-zeile.formel-ergebnis { color: var(--gold); font-weight: 600; }
+
+  .formel-hinweis {
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    margin-top: 0.7rem;
+    font-style: italic;
   }
 
   .field { margin-bottom: 1.1rem; }
@@ -1880,7 +1966,7 @@
       <button type="button" class="add-zeile" id="goldankauf-hinzufuegen">+ Schmuckstück hinzufügen</button>
     </div>
 
-    <div class="card">
+    <div class="card ga-ergebnis-karte">
       <div class="ergebnis-zeile">
         <div>
           <div class="goldankauf-preis-label">Ankaufpreis</div>
@@ -2258,6 +2344,51 @@
       maximumFractionDigits: decimals
     });
   }
+
+  /* --- Formel-Anzeige, von allen Modulen benutzt -----------------------
+   *
+   * Liefert den roten Punkt und den zugehörigen, zunächst verborgenen
+   * Rechenweg. Beides kommt ans ENDE des Karteninhalts — der Knopf sitzt
+   * absolut in der Ecke, seine Stelle im Markup spielt also keine Rolle,
+   * und die Herleitung steht unter dem Ergebnis, wo sie hingehört.
+   *
+   * bloecke: [{ titel?, formel, schritte?: [...], ergebnis?, hinweis? }]
+   * "formel" trägt die Formelzeichen, "schritte" dieselbe Zeile mit den
+   * eingesetzten Zahlen — zusammen ist ein Ergebnis von Hand nachprüfbar.
+   */
+  function formelAnzeige(bloecke) {
+    var inhalt = bloecke.map(function (b) {
+      return '<div class="formel-block">' +
+        (b.titel ? '<div class="formel-block-titel">' + b.titel + '</div>' : '') +
+        '<div class="formel-zeile formel-symbol">' + b.formel + '</div>' +
+        (b.schritte || []).map(function (s) {
+          return '<div class="formel-zeile">' + s + '</div>';
+        }).join("") +
+        (b.ergebnis ? '<div class="formel-zeile formel-ergebnis">' + b.ergebnis + '</div>' : '') +
+        (b.hinweis ? '<div class="formel-hinweis">' + b.hinweis + '</div>' : '') +
+      '</div>';
+    }).join("");
+
+    return '<button type="button" class="formel-knopf" aria-expanded="false" ' +
+             'aria-label="Rechenweg anzeigen"></button>' +
+           '<div class="formel-box" hidden>' +
+             '<div class="formel-titel">So wird gerechnet</div>' + inhalt +
+           '</div>';
+  }
+
+  /* Ein einziger Zuhörer für alle Module: die Ergebniskarten bauen ihren
+   * Inhalt ständig neu auf, einzeln angemeldete Zuhörer stürben mit jedem
+   * Neuaufbau. Knopf und Kasten finden sich über die gemeinsame Karte —
+   * so ist es gleich, an welcher Stelle darin sie stehen. */
+  document.addEventListener("click", function (e) {
+    var knopf = e.target.closest && e.target.closest(".formel-knopf");
+    if (!knopf) return;
+    var karte = knopf.closest(".card");
+    var box = karte && karte.querySelector(".formel-box");
+    if (!box) return;
+    box.hidden = !box.hidden;
+    knopf.setAttribute("aria-expanded", String(!box.hidden));
+  });
 
   // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
   // "Materialwert", "Goldankauf" und "Einheiten" stehen als eigene Panels
@@ -2817,7 +2948,23 @@
           'Wer sichergehen will: Ring biegen, Stoß zusammendrücken und mit dem Sägeblatt durch ' +
           'die Fuge sägen — das macht beide Flächen von selbst deckungsgleich.' +
         '</p>' +
-      '</div>';
+      '</div>' +
+      formelAnzeige([
+        { titel: "Radius der neutralen Faser",
+          formel: "R = (D + s) / 2",
+          schritte: ["R = (" + fmt(w.D, 2) + " mm + " + fmt(w.s, 2) + " mm) / 2"],
+          ergebnis: "R = " + fmt(R, 3) + " mm" },
+        { titel: "Anschrägwinkel je Fläche",
+          formel: "α = s / R   (im Bogenmaß)",
+          schritte: ["α = " + fmt(w.s, 2) + " mm / " + fmt(R, 3) + " mm = " + fmt(alpha, 4),
+                     "α = " + fmt(alpha, 4) + " · 180 / π"],
+          ergebnis: "α = " + fmt(alphaGrad, 1) + " °",
+          hinweis: "Die ungebogene Endzone wird mit einer Materialstärke angesetzt (t = s)." },
+        { titel: "Versatz Innen- zu Außenkante",
+          formel: "v = s · tan α",
+          schritte: ["v = " + fmt(w.s, 2) + " mm · tan " + fmt(alphaGrad, 1) + " °"],
+          ergebnis: "v = " + fmt(versatz, 2) + " mm" }
+      ]);
   }
 
   bevelCheckbox.addEventListener("change", zeigeAnschraegung);
@@ -2897,7 +3044,29 @@
         '<div class="result-item"><div class="label">Innendurchmesser</div><div class="value">' + fmt(D, 2) + ' mm</div></div>' +
         '<div class="result-item"><div class="label"># Innenumfang</div><div class="value">' + fmt(U, 2) + ' mm</div></div>' +
         '<div class="result-item"><div class="label">Außendurchmesser</div><div class="value">' + fmt(outerD, 2) + ' mm</div></div>' +
-      '</div>';
+      '</div>' +
+      formelAnzeige([
+        { titel: "Zuschnittlänge — Umfang der neutralen Faser",
+          formel: "L = π · (D + 2 · k · s) + Zugabe",
+          schritte: ["L = π · (" + fmt(D, 2) + " mm + 2 · " + kZahl(k) + " · " + fmt(s, 2) + " mm)" +
+                     (zugabe > 0 ? " + " + fmt(zugabe, 2) + " mm" : ""),
+                     "L = π · " + fmt(D + 2 * k * s, 3) + " mm" +
+                     (zugabe > 0 ? " + " + fmt(zugabe, 2) + " mm" : "")],
+          ergebnis: "L = " + fmt(L, 2) + " mm",
+          hinweis: "k sagt, wo in der Materialstärke die neutrale Faser liegt — " +
+                   (kInfo.quelle === "aus"
+                     ? "hier die Mitte (0,50), weil der Korrekturfaktor aus ist."
+                     : "hier " + kZahl(k) + (kInfo.quelle === "auto" ? " nach DIN 6935." : ", von Hand gesetzt.")) },
+        { titel: "Maße des Rings",
+          formel: mode === "umfang" ? "D = U / π" : "U = π · D",
+          schritte: mode === "umfang"
+            ? ["D = " + fmt(U, 2) + " mm / π"]
+            : ["U = π · " + fmt(D, 2) + " mm"],
+          ergebnis: mode === "umfang" ? "D = " + fmt(D, 2) + " mm" : "U = " + fmt(U, 2) + " mm" },
+        { formel: "D_außen = D + 2 · s",
+          schritte: ["D_außen = " + fmt(D, 2) + " mm + 2 · " + fmt(s, 2) + " mm"],
+          ergebnis: "D_außen = " + fmt(outerD, 2) + " mm" }
+      ]);
   }
 
   valueInput.addEventListener("input", calcRing);
@@ -3085,6 +3254,19 @@
           '<div class="result-item"><div class="label">Nächste Größe</div><div class="value">' + (exakteGroesse ? "" : "≈ ") + nearestSize + '</div></div>' +
         '</div>';
     }
+
+    html += formelAnzeige([
+      { titel: umfangMode === "umfang" ? "Durchmesser aus dem Umfang" : "Umfang aus dem Durchmesser",
+        formel: umfangMode === "umfang" ? "D = U / π" : "U = π · D",
+        schritte: umfangMode === "umfang"
+          ? ["D = " + fmt(U, 2) + " mm / π"]
+          : ["U = π · " + fmt(D, 2) + " mm"],
+        ergebnis: umfangMode === "umfang"
+          ? "D = " + fmt(D, 2) + " mm"
+          : "U = " + fmt(U, 2) + " mm",
+        hinweis: "Die deutsche Ringgröße ist der Innenumfang in Millimetern — " +
+                 "Größe " + nearestSize + " heißt also " + nearestSize + " mm Innenumfang." }
+    ]);
 
     umfangOutput.innerHTML = html;
 
@@ -4275,7 +4457,56 @@
             ? ' auf Palladiumbasis — nickelgebundenes Weißgold ist deutlich leichter'
             : '; stark rote oder silberreiche Legierungen liegen darüber oder darunter') +
           '. Für den genauen Wert das Blech wiegen und oben auf „Gewicht“ wechseln.</div>'
-        : '');
+        : '') +
+      (function () {
+        var bloecke = [];
+        if (istBlech) {
+          bloecke.push({
+            titel: "Gewicht aus den Blechmaßen",
+            formel: "m = L · B · s / 1000 · ρ",
+            schritte: [
+              "V = " + mkMassZahl(quelle.x) + " · " + mkMassZahl(quelle.y) + " · " +
+                mkMassZahl(quelle.s) + " mm = " + fmt(quelle.volumen * 1000, 1) + " mm³",
+              "m = " + fmt(quelle.volumen, 3) + " cm³ · " + fmt(quelle.dichte, 2) + " g/cm³"
+            ],
+            ergebnis: "m = " + fmt(gewicht, 2) + " g",
+            hinweis: "1 cm³ sind 1000 mm³ — daher das Teilen durch 1000."
+          });
+        }
+        bloecke.push({
+          titel: istWeiss ? "Feingold darin" : "Feingehalt heraussuchen",
+          formel: "m_fein = m · Feingehalt / 1000",
+          schritte: ["m_fein = " + fmt(gewicht, 2) + " g · " + promille + " / 1000"],
+          ergebnis: "m_fein = " + fmt(feingewicht, 2) + " g"
+        });
+        if (istWeiss) {
+          bloecke.push({
+            titel: "Palladiumanteil",
+            formel: "m_Pd = m · " + fmt(WG_PD_ANTEIL, 0) + " %",
+            schritte: ["m_Pd = " + fmt(gewicht, 2) + " g · " + fmt(WG_PD_ANTEIL, 0) + " / 100"],
+            ergebnis: "m_Pd = " + fmt(pdGramm, 2) + " g"
+          });
+          bloecke.push({
+            titel: "Wert",
+            formel: "W = m_fein · Kurs_Au + m_Pd · Kurs_Pd",
+            schritte: ["W = " + fmt(feingewicht, 2) + " g · " + fmt(preis, preis < 10 ? 3 : 2) +
+                       " € + " + fmt(pdGramm, 2) + " g · " + fmt(pdPreis, pdPreis < 10 ? 3 : 2) + " €",
+                       "W = " + fmt(feingewicht * preis, 2) + " € + " + fmt(pdGramm * pdPreis, 2) + " €"],
+            ergebnis: "W = " + fmt(wert, 2) + " €",
+            hinweis: "Weißgold hat keinen eigenen Kurs — bewertet wird sein Feingold, " +
+                     "der Palladiumanteil kommt zum Palladiumkurs dazu."
+          });
+        } else {
+          bloecke.push({
+            titel: "Wert",
+            formel: "W = m_fein · Kurs",
+            schritte: ["W = " + fmt(feingewicht, 2) + " g · " +
+                       fmt(preis, preis < 10 ? 3 : 2) + " € je g"],
+            ergebnis: "W = " + fmt(wert, 2) + " €"
+          });
+        }
+        return formelAnzeige(bloecke);
+      })();
   }
 
   wertMetallTasten.forEach(function (btn) {
@@ -4801,6 +5032,27 @@
             '<span class="ga-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
           '</div>';
 
+    /* Der Rechenweg steht im Händler-Bereich, nicht in der Übersicht darüber:
+     * er enthält Kurse und Metallwert, und genau die sollen nicht auf dem
+     * Bildschirm stehen, während der Kunde danebensitzt. Ist der Bereich zu,
+     * ist auch der rote Punkt weg — er steckt mit darin. */
+    ek += formelAnzeige([
+      { titel: "Feingewicht je Stück",
+        formel: "m_fein = m · Feingehalt / 1000",
+        schritte: posten.map(function (p) { return p.titel + "  →  " + p.rechnung; }) },
+      { titel: "Metallwert",
+        formel: "Metallwert = Σ (m_fein · Kurs)",
+        ergebnis: "Metallwert = " + fmt(metallwert, 2) + " €" },
+      { titel: "Ankaufpreis",
+        formel: "Preis = Metallwert · Satz / 100 + Auf-/Abschlag",
+        schritte: ["Preis = " + fmt(metallwert, 2) + " € · " +
+                     fmt(ankaufProzent, ankaufProzent % 1 ? 1 : 0) + " / 100" +
+                     (fixBetrag ? (fixBetrag < 0 ? " − " : " + ") + fmt(Math.abs(fixBetrag), 2) + " €" : ""),
+                   "Preis = " + fmt(nachSatz, 2) + " €" +
+                     (fixBetrag ? (fixBetrag < 0 ? " − " : " + ") + fmt(Math.abs(fixBetrag), 2) + " €" : "")],
+        ergebnis: "Preis = " + fmt(endpreis, 2) + " €" }
+    ]);
+
     gaEndkosten.innerHTML = ek;
   }
 
@@ -4925,7 +5177,23 @@
           '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz + '</div></button>';
       }).join("");
 
-    einheitenErgebnis.innerHTML = '<div class="result-grid einheiten-grid">' + kacheln + '</div>';
+    var basisName = einheitenKategorie === "gewicht" ? "Gramm" : "Millimeter";
+    einheitenErgebnis.innerHTML = '<div class="result-grid einheiten-grid">' + kacheln + '</div>' +
+      formelAnzeige([
+        { titel: "Über eine gemeinsame Grundeinheit",
+          formel: "Ziel = Wert · Faktor(von) / Faktor(Ziel)",
+          schritte: ["Grundwert = " + fmt(wert, 3).replace(/,?0+$/, "") + " · " +
+                       fmt(von.proBasis, 6).replace(/,?0+$/, "") + " = " +
+                       fmt(basiswert, 4).replace(/,?0+$/, "") + " " + basisName],
+          hinweis: "Alles läuft über " + basisName + " als Zwischenschritt. Deshalb braucht " +
+                   "nicht jedes Einheitenpaar einen eigenen Faktor, sondern jede Einheit nur " +
+                   "einen — ihren Wert in " + basisName + "." },
+        { titel: "Umrechnungsfaktoren",
+          formel: liste.map(function (e) {
+            return "1 " + e.kurz + " = " + fmt(e.proBasis, 6).replace(/,?0+$/, "") + " " +
+                   (einheitenKategorie === "gewicht" ? "g" : "mm");
+          }).join("<br>") }
+      ]);
   }
 
   // Kachel antippen: diese Einheit wird zur neuen Ausgangseinheit. Der Wert
@@ -5234,7 +5502,32 @@
           'entscheidet er über eine halbe Ringgröße. Wer stur die Umfangsdifferenz absägt, ' +
           'macht den Ring zu groß.' +
         '</p>' +
-      '</div>';
+      '</div>' +
+      formelAnzeige([
+        { titel: "Zuschnittlänge beider Größen (Ringrechner)",
+          formel: "L = π · (D + 2 · k · s)     D = U / π",
+          schritte: ["L_start = π · (" + fmt(dStart, 2) + " + 2 · " + kZahl(kStart) + " · " +
+                       fmt(staerke, 2) + ") = " + fmt(lStart, 2) + " mm",
+                     "L_ziel  = π · (" + fmt(dZiel, 2) + " + 2 · " + kZahl(kZiel) + " · " +
+                       fmt(staerke, 2) + ") = " + fmt(lZiel, 2) + " mm"] },
+        { titel: "Material, das wegmuss — auf der neutralen Faser",
+          formel: "ΔL = L_start − L_ziel",
+          schritte: ["ΔL = " + fmt(lStart, 2) + " mm − " + fmt(lZiel, 2) + " mm"],
+          ergebnis: "ΔL = " + fmt(deltaNeutral, 2) + " mm" },
+        { titel: "Keilwinkel",
+          formel: "θ = ΔL / (D_start/2 + k · s)",
+          schritte: ["θ = " + fmt(deltaNeutral, 2) + " / (" + fmt(dStart / 2, 2) + " + " +
+                       kZahl(kStart) + " · " + fmt(staerke, 2) + ") = " + fmt(theta, 4)],
+          ergebnis: "θ = " + fmt(theta * 180 / Math.PI, 1) + " °" },
+        { titel: "Anriss außen",
+          formel: "außen = θ · (D_start/2 + s)",
+          schritte: ["außen = " + fmt(theta, 4) + " · (" + fmt(dStart / 2, 2) + " + " +
+                       fmt(staerke, 2) + ") mm"],
+          ergebnis: "außen = " + fmt(deltaAussen, 2) + " mm",
+          hinweis: kAn
+            ? "k kommt aus DIN 6935 — beide Größen bekommen ihr eigenes, weil der engere Ring schärfer biegt."
+            : "Korrekturfaktor aus: k = 0,50 auf beiden Seiten, die k·s-Anteile heben sich in ΔL weg." }
+      ]);
   }
 
   [rvStartInput, rvZielInput, rvStaerkeInput].forEach(function (el) {
@@ -5573,6 +5866,12 @@
         titel: name || masseText,
         detail: (name ? masseText + " · " : "") +
                 NAME[metall] + " " + promille + " · " + fmt(gramm, 1) + " g",
+        // für den Rechenweg hinter dem roten Punkt
+        gramm: gramm,
+        promille: promille,
+        kurs: preis,
+        volumen: form.volumen ? volumen : null,
+        dichte: form.volumen ? DICHTE[metall][promille] : null,
         basisWert: basisWert,
         // Der Kurs steht nur außerhalb des Händlermodus dabei: neben einem
         // faktorierten Betrag ginge die Rechnung "g × Kurs" nicht mehr auf.
@@ -5618,7 +5917,43 @@
              (haendlerAn ? "Gesamt" : "Rohmaterial") + '</span>' +
              '<span class="mk-auf-wert">' + fmt(haendlerAn ? endpreis : summe, 2) +
              ' €</span></div></div>';
-      mkAufschluesselung.innerHTML = auf;
+      /* Der Rechenweg enthält Materialwert und Faktor. Im Händlermodus darf
+       * beides nicht offen stehen — dort wandert er deshalb samt rotem Punkt
+       * in den Händlerbereich, der bewusst geöffnet wird. Ohne Händlermodus
+       * gibt es nichts zu verbergen, dann sitzt er wie überall an der Karte. */
+      var mkFormel = formelAnzeige([
+        { titel: "Gewicht je Posten aus den Maßen",
+          formel: "m = V / 1000 · ρ",
+          schritte: posten.filter(function (p) { return p.volumen; }).map(function (p) {
+            return mkEscape(p.titel) + ": " + fmt(p.volumen, 1) + " mm³ · " +
+                   fmt(p.dichte, 2) + " g/cm³ = " + fmt(p.gramm, 2) + " g";
+          }),
+          hinweis: "Bei der Form „Gewicht“ entfällt dieser Schritt — dort ist die Zahl schon das Gewicht." },
+        { titel: "Wert je Posten",
+          formel: "W = m · Feingehalt / 1000 · Kurs",
+          schritte: posten.map(function (p) {
+            return mkEscape(p.titel) + ": " + fmt(p.gramm, 2) + " g · " + p.promille +
+                   " / 1000 · " + fmt(p.kurs, p.kurs < 10 ? 3 : 2) + " € = " +
+                   fmt(p.basisWert, 2) + " €" +
+                   (p.pdWert > 0 ? "  (+ Pd " + fmt(p.pdWert, 2) + " €)" : "");
+          }),
+          ergebnis: "Rohmaterial = " + fmt(summe, 2) + " €" },
+        haendlerAn
+          ? { titel: "Endpreis",
+              formel: "Preis = Rohmaterial · Faktor + Aufschlag",
+              schritte: ["Preis = " + fmt(summe, 2) + " € · " + mkMassZahl(faktor) +
+                           (aufschlag ? (aufschlag < 0 ? " − " : " + ") + fmt(Math.abs(aufschlag), 2) + " €" : ""),
+                         "Preis = " + fmt(nachFaktor, 2) + " €" +
+                           (aufschlag ? (aufschlag < 0 ? " − " : " + ") + fmt(Math.abs(aufschlag), 2) + " €" : "")],
+              ergebnis: "Preis = " + fmt(endpreis, 2) + " €",
+              hinweis: "Der Faktor steckt schon in den einzelnen Posten oben; der Aufschlag " +
+                       "kommt einmal am Ende dazu, ohne eigene Zeile." }
+          : { titel: "Summe",
+              formel: "Rohmaterial = Σ Posten",
+              ergebnis: fmt(summe, 2) + " €" }
+      ]);
+
+      mkAufschluesselung.innerHTML = auf + (haendlerAn ? "" : mkFormel);
 
       // Die Preiskette steht im Händlerbereich — dort, wo auch die Zahlen
       // stehen, die sie erzeugen.
@@ -5633,7 +5968,7 @@
             '<span class="mk-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
           '<div class="mk-auf-zeile mk-auf-endpreis"><span>Endpreis</span>' +
             '<span class="mk-auf-wert">' + fmt(endpreis, 2) + ' €</span></div>' +
-        '</div>';
+        '</div>' + (haendlerAn ? mkFormel : "");
     }
 
     mkSummeLabel.textContent = haendlerAn ? "Endpreis" : "Rohmaterial gesamt";
@@ -6002,7 +6337,23 @@
         '</div>' +
         legBalken(mengen, menge) +
         legListe(mengen, menge, "Zusammen") +
-        rezept;
+        rezept +
+        formelAnzeige([
+          { titel: "Anteil je Metall am Gesamtgewicht",
+            formel: "Basismetall = Feingehalt / 1000     Zuschlag = Rest · Rezeptanteil",
+            schritte: LEG_ELEMENTE.filter(function (e) { return zielAnteile[e] > 0.0005; })
+              .map(function (e) {
+                return LEG_ELEMENT[e].name + " = " + fmt(zielAnteile[e] * 100, 2) + " %";
+              }) },
+          { titel: "Einwaage",
+            formel: "m_Metall = Zielmenge · Anteil",
+            schritte: LEG_ELEMENTE.filter(function (e) { return mengen[e] > 0.0005; })
+              .map(function (e) {
+                return LEG_ELEMENT[e].name + " = " + fmt(menge, 2) + " g · " +
+                       fmt(zielAnteile[e] * 100, 2) + " % = " + fmt(mengen[e], 2) + " g";
+              }),
+            ergebnis: "zusammen " + fmt(menge, 2) + " g" }
+        ]);
       return;
     }
 
@@ -6069,7 +6420,33 @@
       '<div class="leg-gruppe-titel" style="margin-top:1.4rem">Ergibt</div>' +
       legBalken(endMengen, endmenge) +
       legListe(endMengen, endmenge, "Endmenge") +
-      rezept;
+      rezept +
+      formelAnzeige([
+        { titel: "Kleinste Endmenge, bei der nichts entnommen werden muss",
+          formel: "Faktor = max über alle Metalle von (Anteil_ist / Anteil_ziel)",
+          schritte: LEG_ELEMENTE.filter(function (e) { return istAnteile[e] > 1e-9; })
+            .map(function (e) {
+              return LEG_ELEMENT[e].name + ": " + fmt(istAnteile[e] * 100, 2) + " % / " +
+                     fmt(zielAnteile[e] * 100, 2) + " % = " +
+                     fmt(istAnteile[e] / zielAnteile[e], 3);
+            }),
+          ergebnis: "Faktor = " + fmt(faktor, 3),
+          hinweis: "Es wird nur zugegeben, nie entnommen — deshalb bestimmt das Metall " +
+                   "mit dem größten Überschuss, wie weit die Menge insgesamt wachsen muss." },
+        { titel: "Endmenge",
+          formel: "Endmenge = Vorhandenes · Faktor",
+          schritte: ["Endmenge = " + fmt(vorhanden, 2) + " g · " + fmt(faktor, 3)],
+          ergebnis: "Endmenge = " + fmt(endmenge, 2) + " g" },
+        { titel: "Zugabe je Metall",
+          formel: "Zugabe = Endmenge · Anteil_ziel − Vorhandenes · Anteil_ist",
+          schritte: LEG_ELEMENTE.filter(function (e) { return zugabe[e] > 0.0005; })
+            .map(function (e) {
+              return LEG_ELEMENT[e].name + " = " + fmt(endmenge, 2) + " · " +
+                     fmt(zielAnteile[e] * 100, 2) + " % − " + fmt(vorhanden, 2) + " · " +
+                     fmt(istAnteile[e] * 100, 2) + " % = " + fmt(zugabe[e], 2) + " g";
+            }),
+          ergebnis: "zusammen " + fmt(zugabeSumme, 2) + " g" }
+      ]);
   }
 
   legModeTasten.forEach(function (btn) {
@@ -6294,17 +6671,32 @@
           stKachel("Dichte", fmt(stein.sg, 2) + " g/cm³") +
           stKachel("Formfaktor", fmt(form.f, 3)) +
         '</div>' +
-        '<div class="st-rechenweg">' +
-          '<strong>Rechenweg:</strong> ' + rechenMasse +
-          ' × ' + fmt(form.f, 3) + ' × ' + fmt(stein.sg, 2) + ' g/cm³ ÷ 200 = ' +
-          fmt(karatRoh, 2) + ' ct' +
-          (rundiste.zuschlag > 0
-            ? ', dazu ' + fmt(rundiste.zuschlag * 100, 0) + ' % für die ' + rundiste.name +
-              'e Rundiste = ' + fmt(karat, 2) + ' ct'
-            : '') +
-          '. Schätzwert bei üblichen Schleifproportionen — flach oder steil ' +
-          'geschliffene Steine weichen um einige Prozent ab.' +
-        '</div>';
+        '<div class="st-rechenweg">Schätzwert bei üblichen Schleifproportionen — flach oder ' +
+          'steil geschliffene Steine weichen um einige Prozent ab.</div>' +
+        formelAnzeige([
+          { titel: "Volumen aus den Maßen",
+            formel: "V = L · B · T · Formfaktor",
+            schritte: ["V = " + rechenMasse + " · " + fmt(form.f, 3)],
+            ergebnis: "V = " + fmt(volumen, 1) + " mm³",
+            hinweis: "Der Formfaktor sagt, wie viel des umschreibenden Quaders der Schliff " +
+                     "wirklich füllt — beim Brillanten rund ein Drittel." },
+          { titel: "Karatgewicht",
+            formel: "ct = V · ρ / 200",
+            schritte: ["ct = " + fmt(volumen, 1) + " mm³ · " + fmt(stein.sg, 2) + " g/cm³ ÷ 200"],
+            ergebnis: "ct = " + fmt(karatRoh, 2) + " ct",
+            hinweis: "1 mm³ ist ein Tausendstel cm³, 1 ct sind 0,2 g — beides zusammen " +
+                     "ergibt das Teilen durch 200." },
+          rundiste.zuschlag > 0
+            ? { titel: "Zuschlag für die Rundiste",
+                formel: "ct_gesamt = ct · (1 + Zuschlag)",
+                schritte: ["ct_gesamt = " + fmt(karatRoh, 2) + " · (1 + " +
+                           fmt(rundiste.zuschlag, 2) + ")"],
+                ergebnis: "ct_gesamt = " + fmt(karat, 2) + " ct",
+                hinweis: "Eine " + rundiste.name + "e Rundiste steckt Gewicht in den Rand, " +
+                         "ohne den Stein größer wirken zu lassen." }
+            : { titel: "Rundiste",
+                formel: "kein Zuschlag bei dünner bis mittlerer Rundiste" }
+        ]);
       return;
     }
 
@@ -6354,7 +6746,25 @@
         'Tiefe ' + fmt(form.tiefe * 100, 0) + ' % der Breite. ' +
         'Andere Proportionen ergeben bei gleichem Gewicht andere Maße — ein ' +
         'flacher Stein wird breiter, ein steiler schmaler.' +
-      '</div>';
+      '</div>' +
+      formelAnzeige([
+        { titel: "Alles an die Breite gekoppelt",
+          formel: "L = B · " + mkMassZahl(form.lb) + "     T = B · " + fmt(form.tiefe, 3),
+          hinweis: "Mit den üblichen Proportionen dieser Form hängen Länge und Tiefe " +
+                   "an der Breite — damit bleibt eine einzige Unbekannte." },
+        { titel: "Nach der Breite auflösen",
+          formel: "ct = B³ · (L/B) · (T/B) · Formfaktor · ρ / 200",
+          schritte: ["B³ = " + fmt(ziel, 2) + " · 200 / (" + mkMassZahl(form.lb) + " · " +
+                       fmt(form.tiefe, 3) + " · " + fmt(form.f, 3) + " · " + fmt(stein.sg, 2) + ")",
+                     "B = ∛" + fmt(ziel * 200 / nenner, 1)],
+          ergebnis: "B = " + fmt(breiteZ, 2) + " mm" },
+        { titel: "Daraus die übrigen Maße",
+          formel: "L = B · " + mkMassZahl(form.lb) + "     T = B · " + fmt(form.tiefe, 3),
+          schritte: (form.rund ? [] : ["L = " + fmt(breiteZ, 2) + " · " + mkMassZahl(form.lb) +
+                       " = " + fmt(laengeZ, 2) + " mm"])
+            .concat(["T = " + fmt(breiteZ, 2) + " · " + fmt(form.tiefe, 3) + " = " +
+                     fmt(tiefeZ, 2) + " mm"]) }
+      ]);
   }
 
   function stModusAnzeigen() {
