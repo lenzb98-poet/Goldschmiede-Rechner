@@ -1290,7 +1290,8 @@
   /* Winziges Etikett über jedem Maßfeld: ohne es wäre bei "40 / 25 / 1,2"
      nicht zu sehen, welche Zahl Länge, Breite oder Stärke ist — und ein
      Platzhalter im Feld verschwindet ja, sobald etwas drinsteht. */
-  .mk-mass-label {
+  .mk-mass-label,
+  .st-mass-label {
     display: block;
     font-size: 0.68rem;
     color: var(--text-dim);
@@ -1301,9 +1302,11 @@
     text-overflow: ellipsis;
   }
 
-  .mk-mass-eingabe { position: relative; min-width: 0; }
+  .mk-mass-eingabe,
+  .st-mass-eingabe { position: relative; min-width: 0; }
 
-  input.mk-mass-wert {
+  input.mk-mass-wert,
+  input.st-mass-wert {
     font-size: 0.9rem;
     padding: 0.45rem 1.7rem 0.45rem 0.4rem;
     border-radius: 0.5rem;
@@ -1316,7 +1319,8 @@
     -webkit-appearance: none;
   }
 
-  .mk-mass-einheit {
+  .mk-mass-einheit,
+  .st-mass-einheit {
     position: absolute;
     right: 0.4rem;
     top: 50%;
@@ -1330,7 +1334,8 @@
   .mk-form:focus,
   .mk-material:focus,
   .mk-feingehalt:focus,
-  input.mk-mass-wert:focus {
+  input.mk-mass-wert:focus,
+  input.st-mass-wert:focus {
     outline: none;
     border-color: var(--gold);
   }
@@ -1481,6 +1486,40 @@
     border-top: 1px solid var(--border);
   }
 
+  /* --- Steingewicht ---------------------------------------------------
+     Der Umriss zeigt die Form MIT den eingegebenen Proportionen: ein 2:1
+     Baguette sieht anders aus als ein quadratisches. Deshalb wird das
+     Feld verzerrt statt der Pfad neu gerechnet — vector-effect hält dabei
+     die Strichstärke gleichmäßig. */
+  .st-masse { display: grid; gap: 0.5rem; }
+
+  .st-umriss-feld {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 6.5rem;
+    margin: 1.2rem 0 0.4rem;
+  }
+
+  .st-umriss path,
+  .st-umriss ellipse {
+    fill: rgba(212, 175, 55, 0.10);
+    stroke: var(--gold);
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+  }
+
+  .st-rechenweg {
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--text-dim);
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .st-rechenweg strong { color: var(--text); font-weight: 600; }
+
   /* Der Händler-Knopf sitzt in der Ecke der Ergebniskarte statt neben der
      Zahl wie im Goldankauf: die große mittige Summe bleibt so, wie sie ist,
      und der Knopf drängt sich nicht dazwischen. Gleiche Optik, gleiche
@@ -1525,6 +1564,7 @@
   <button class="tab" data-tab="goldankauf">Goldankauf</button>
   <button class="tab" data-tab="metallkalk">Metallkalkulation</button>
   <button class="tab" data-tab="legierung">Legierung</button>
+  <button class="tab" data-tab="stein">Steingewicht</button>
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
 </nav>
@@ -2072,6 +2112,55 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-stein">
+    <div class="card">
+      <div class="field">
+        <label>Was möchtest du wissen?</label>
+        <div class="segmented" id="st-mode">
+          <button type="button" data-mode="gewicht" class="active">Gewicht</button>
+          <button type="button" data-mode="masse">Maße</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="st-form">Schliffform</label>
+        <select class="wheel-select klein" id="st-form"></select>
+      </div>
+
+      <div id="st-gewicht-felder">
+        <div class="field">
+          <label>Maße des Steins</label>
+          <div class="st-masse" id="st-masse"></div>
+        </div>
+      </div>
+
+      <div id="st-masse-felder" hidden>
+        <div class="field">
+          <label for="st-karat">Gewicht</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="st-karat" placeholder="z. B. 1,00">
+            <span class="unit">ct</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="st-stein">Steinart</label>
+        <select class="wheel-select klein" id="st-stein"></select>
+      </div>
+
+      <div class="field" id="st-rundiste-feld">
+        <label for="st-rundiste">Rundistenstärke</label>
+        <select class="wheel-select klein" id="st-rundiste"></select>
+        <div class="field-hint">Eine dicke Rundiste steckt Gewicht in den Rand, ohne den Stein größer wirken zu lassen.</div>
+      </div>
+    </div>
+
+    <div class="card" id="st-ergebnis">
+      <div class="placeholder">Maße eingeben, um das Gewicht zu sehen.</div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-einheiten">
     <div class="card">
       <div class="field">
@@ -2176,8 +2265,6 @@
   var kommende = [
     { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
       text: "Nachschlagetafel mit Name und Umriss." },
-    { id: "stein",    tab: "Steingewicht",     titel: "5 · Steingewicht",
-      text: "Maße plus Schliffform plus Steinart ergibt das Karatgewicht. Maße × Formfaktor × Dichte, die Rundistenstärke kommt als Zuschlag dazu." },
     { id: "mohs",     tab: "Mohshärte",   titel: "8 · Mohshärte",
       text: "Nachschlag, bei dem Stein, Name und Härte zusammen zu sehen sind." }
   ];
@@ -6014,6 +6101,304 @@
   legFuelleFein(legFeinSelect, legSorte(legSorteSelect.value));
   legFuelleFein(legIstFeinSelect, legSorte(legIstSorteSelect.value));
   berechneLegierung();
+
+  /* --- Modul 5: Steingewicht -------------------------------------------
+   *
+   * Ein gefasster Stein lässt sich nicht wiegen — geschätzt wird deshalb
+   * über die Maße:
+   *
+   *   Volumen [mm³] = Länge · Breite · Tiefe · Formfaktor
+   *   Karat         = Volumen / 1000 · Dichte / 0,2
+   *                 = Länge · Breite · Tiefe · Formfaktor · Dichte / 200
+   *
+   * Der Formfaktor sagt, wie viel des umschreibenden Quaders die Schliffform
+   * tatsächlich füllt. Er ist aus den geläufigen Handelsformeln zurückgerechnet:
+   * für den Brillanten lautet die bekannte Faustformel Ø² · Tiefe · 0,0061,
+   * und 0,0061 · 200 / 3,52 (Dichte Diamant) ergibt den Füllgrad 0,347. So
+   * gerechnet gilt derselbe Faktor für jeden Stein, nur die Dichte wechselt —
+   * ein Zirkonia derselben Maße wiegt dadurch rund 60 % mehr als ein Diamant.
+   *
+   * Die Rundistenstärke kommt als prozentualer Zuschlag obendrauf: ein dicker
+   * Rand steckt Gewicht in den Stein, ohne ihn größer wirken zu lassen.
+   *
+   * Das bleibt eine Schätzung: die Formeln setzen übliche Schleifproportionen
+   * voraus. Ein flach oder steil geschliffener Stein weicht ab, üblicherweise
+   * um ein paar Prozent — der Hinweis unter dem Ergebnis sagt das.
+   */
+  var ST_FORMEN = [
+    { id: "rund",     name: "Rund (Brillant)", rund: true, f: 0.3466, lb: 1.00, tiefe: 0.615,
+      pfad: null },
+    { id: "oval",     name: "Oval",            f: 0.3523, lb: 1.40, tiefe: 0.62, pfad: null },
+    { id: "kissen",   name: "Kissen",          f: 0.4631, lb: 1.10, tiefe: 0.65,
+      pfad: "M 22 3 H 78 Q 97 3 97 22 V 78 Q 97 97 78 97 H 22 Q 3 97 3 78 V 22 Q 3 3 22 3 Z" },
+    { id: "prinzess", name: "Prinzess",        f: 0.4716, lb: 1.00, tiefe: 0.72,
+      pfad: "M 3 3 H 97 V 97 H 3 Z" },
+    { id: "smaragd",  name: "Smaragdschliff",  f: 0.4545, lb: 1.40, tiefe: 0.65,
+      pfad: "M 24 3 H 76 L 97 24 V 76 L 76 97 H 24 L 3 76 V 24 Z" },
+    { id: "baguette", name: "Baguette",        f: 0.5199, lb: 2.00, tiefe: 0.60,
+      pfad: "M 3 3 H 97 V 97 H 3 Z" },
+    { id: "tropfen",  name: "Tropfen",         f: 0.3494, lb: 1.50, tiefe: 0.60,
+      pfad: "M 3 50 Q 26 8 58 6 A 44 44 0 1 1 58 94 Q 26 92 3 50 Z" },
+    { id: "navette",  name: "Navette",         f: 0.3210, lb: 2.00, tiefe: 0.58,
+      pfad: "M 3 50 Q 50 3 97 50 Q 50 97 3 50 Z" },
+    { id: "herz",     name: "Herz",            f: 0.3352, lb: 1.00, tiefe: 0.60,
+      pfad: "M 50 96 C 20 70 4 46 4 30 A 21 21 0 0 1 50 24 A 21 21 0 0 1 96 30 C 96 46 80 70 50 96 Z" },
+    { id: "trillant", name: "Trillant",        f: 0.3239, lb: 1.00, tiefe: 0.48,
+      pfad: "M 50 4 Q 96 84 94 95 Q 50 85 6 95 Q 4 84 50 4 Z" }
+  ];
+
+  var ST_STEINE = [
+    { id: "diamant",  name: "Diamant",       sg: 3.52 },
+    { id: "moissanit", name: "Moissanit",    sg: 3.21 },
+    { id: "zirkonia", name: "Zirkonia (CZ)", sg: 5.75 },
+    { id: "rubin",    name: "Rubin",         sg: 4.00 },
+    { id: "saphir",   name: "Saphir",        sg: 4.00 },
+    { id: "smaragd",  name: "Smaragd",       sg: 2.72 },
+    { id: "aquamarin", name: "Aquamarin",    sg: 2.72 },
+    { id: "morganit", name: "Morganit",      sg: 2.80 },
+    { id: "topas",    name: "Topas",         sg: 3.53 },
+    { id: "turmalin", name: "Turmalin",      sg: 3.06 },
+    { id: "granat",   name: "Granat",        sg: 3.90 },
+    { id: "peridot",  name: "Peridot",       sg: 3.34 },
+    { id: "spinell",  name: "Spinell",       sg: 3.60 },
+    { id: "tansanit", name: "Tansanit",      sg: 3.35 },
+    { id: "zirkon",   name: "Zirkon",        sg: 4.65 },
+    { id: "amethyst", name: "Amethyst",      sg: 2.65 },
+    { id: "citrin",   name: "Citrin",        sg: 2.65 },
+    { id: "bergkristall", name: "Bergkristall", sg: 2.65 },
+    { id: "mondstein", name: "Mondstein",    sg: 2.61 },
+    { id: "onyx",     name: "Onyx",          sg: 2.61 },
+    { id: "lapis",    name: "Lapislazuli",   sg: 2.80 },
+    { id: "tuerkis",  name: "Türkis",        sg: 2.70 },
+    { id: "opal",     name: "Opal",          sg: 2.10 }
+  ];
+
+  var ST_RUNDISTE = [
+    { id: "duenn",  name: "dünn bis mittel", zuschlag: 0 },
+    { id: "etwas",  name: "etwas dick",      zuschlag: 0.01 },
+    { id: "dick",   name: "dick",            zuschlag: 0.02 },
+    { id: "sehr",   name: "sehr dick",       zuschlag: 0.04 },
+    { id: "extrem", name: "extrem dick",     zuschlag: 0.06 }
+  ];
+
+  var KARAT_IN_GRAMM = 0.2;
+
+  function stForm(id) { return ST_FORMEN.filter(function (f) { return f.id === id; })[0] || ST_FORMEN[0]; }
+  function stStein(id) { return ST_STEINE.filter(function (s) { return s.id === id; })[0] || ST_STEINE[0]; }
+  function stRundiste(id) { return ST_RUNDISTE.filter(function (r) { return r.id === id; })[0] || ST_RUNDISTE[0]; }
+
+  var stMode = "gewicht";
+  var stModeTasten = document.querySelectorAll("#st-mode button");
+  var stGewichtFelder = document.getElementById("st-gewicht-felder");
+  var stMasseFelder = document.getElementById("st-masse-felder");
+  var stMasseHost = document.getElementById("st-masse");
+  var stKaratInput = document.getElementById("st-karat");
+  var stFormSelect = document.getElementById("st-form");
+  var stSteinSelect = document.getElementById("st-stein");
+  var stRundisteSelect = document.getElementById("st-rundiste");
+  var stRundisteFeld = document.getElementById("st-rundiste-feld");
+  var stErgebnis = document.getElementById("st-ergebnis");
+
+  // Runde Steine haben nur Ø und Tiefe — Länge und Breite sind dasselbe.
+  function stMassListe(form) {
+    return form.rund
+      ? [ { id: "d", label: "Ø",      ph: "6,5" },
+          { id: "t", label: "Tiefe",  ph: "4,0" } ]
+      : [ { id: "l", label: "Länge",  ph: "7,0" },
+          { id: "b", label: "Breite", ph: "5,0" },
+          { id: "t", label: "Tiefe",  ph: "3,1" } ];
+  }
+
+  function stBaueMassfelder() {
+    var liste = stMassListe(stForm(stFormSelect.value));
+    stMasseHost.style.gridTemplateColumns = "repeat(" + liste.length + ", 1fr)";
+    stMasseHost.innerHTML = liste.map(function (m) {
+      return '<div>' +
+        '<span class="st-mass-label">' + m.label + '</span>' +
+        '<div class="st-mass-eingabe">' +
+          '<input type="text" inputmode="decimal" enterkeyhint="next" class="st-mass-wert" ' +
+            'data-mass="' + m.id + '" placeholder="' + m.ph + '" aria-label="' + m.label + ' in mm">' +
+          '<span class="st-mass-einheit">mm</span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  // Umriss in den tatsächlichen Proportionen. Die Höhe ist fest, die Breite
+  // folgt dem Verhältnis Länge zu Breite — bis zu einer Grenze, damit ein
+  // langes Baguette die Karte nicht sprengt.
+  function stUmriss(form, laenge, breite) {
+    var verhaeltnis = (laenge > 0 && breite > 0) ? laenge / breite : form.lb;
+    var h = 88, w = h * verhaeltnis;
+    if (w > 200) { w = 200; h = w / verhaeltnis; }
+    var inhalt = form.pfad
+      ? '<path d="' + form.pfad + '" vector-effect="non-scaling-stroke"/>'
+      : '<ellipse cx="50" cy="50" rx="47" ry="47" vector-effect="non-scaling-stroke"/>';
+    return '<div class="st-umriss-feld">' +
+      '<svg class="st-umriss" viewBox="0 0 100 100" preserveAspectRatio="none" ' +
+           'width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" ' +
+           'role="img" aria-label="Umriss: ' + form.name + '">' + inhalt + '</svg>' +
+    '</div>';
+  }
+
+  function stKachel(label, wert) {
+    return '<div class="result-item"><div class="label">' + label + '</div>' +
+           '<div class="value">' + wert + '</div></div>';
+  }
+
+  function berechneStein() {
+    var form = stForm(stFormSelect.value);
+    var stein = stStein(stSteinSelect.value);
+    var rundiste = stRundiste(stRundisteSelect.value);
+
+    if (stMode === "gewicht") {
+      var felder = stMassListe(form);
+      var masse = {}, vollstaendig = true;
+      felder.forEach(function (m) {
+        var feld = stMasseHost.querySelector('.st-mass-wert[data-mass="' + m.id + '"]');
+        var v = feld ? parseDe(feld.value) : NaN;
+        if (isNaN(v) || v <= 0) { vollstaendig = false; return; }
+        masse[m.id] = v;
+      });
+      if (!vollstaendig) {
+        stErgebnis.innerHTML = '<div class="placeholder">Maße eingeben, um das Gewicht zu sehen.</div>';
+        return;
+      }
+
+      var laenge = form.rund ? masse.d : masse.l;
+      var breite = form.rund ? masse.d : masse.b;
+      var tiefe = masse.t;
+
+      var volumen = laenge * breite * tiefe * form.f;          // mm³
+      var karatRoh = volumen / 1000 * stein.sg / KARAT_IN_GRAMM;
+      var karat = karatRoh * (1 + rundiste.zuschlag);
+      var gramm = karat * KARAT_IN_GRAMM;
+
+      var massText = form.rund
+        ? "Ø " + mkMassZahl(laenge) + " × " + mkMassZahl(tiefe) + " mm"
+        : mkMassZahl(laenge) + " × " + mkMassZahl(breite) + " × " + mkMassZahl(tiefe) + " mm";
+      // Im Rechenweg steht der Durchmesser zweimal — er geht als Länge UND
+      // als Breite ein. "6,5 × 4 mm" ließe die Rechnung nicht aufgehen.
+      var rechenMasse = mkMassZahl(laenge) + " × " + mkMassZahl(breite) + " × " + mkMassZahl(tiefe) + " mm";
+
+      stErgebnis.innerHTML =
+        '<div class="result-main">' +
+          '<div class="label">Steingewicht</div>' +
+          '<div class="value">' + fmt(karat, 2) + '<span class="unit">ct</span></div>' +
+          '<div class="extra-note">' + form.name + ' · ' + stein.name + ' · ' + massText + '</div>' +
+        '</div>' +
+        stUmriss(form, laenge, breite) +
+        '<div class="result-grid">' +
+          stKachel("in Gramm", fmt(gramm, 3) + " g") +
+          stKachel("Volumen", fmt(volumen, 1) + " mm³") +
+          stKachel("Dichte", fmt(stein.sg, 2) + " g/cm³") +
+          stKachel("Formfaktor", fmt(form.f, 3)) +
+        '</div>' +
+        '<div class="st-rechenweg">' +
+          '<strong>Rechenweg:</strong> ' + rechenMasse +
+          ' × ' + fmt(form.f, 3) + ' × ' + fmt(stein.sg, 2) + ' g/cm³ ÷ 200 = ' +
+          fmt(karatRoh, 2) + ' ct' +
+          (rundiste.zuschlag > 0
+            ? ', dazu ' + fmt(rundiste.zuschlag * 100, 0) + ' % für die ' + rundiste.name +
+              'e Rundiste = ' + fmt(karat, 2) + ' ct'
+            : '') +
+          '. Schätzwert bei üblichen Schleifproportionen — flach oder steil ' +
+          'geschliffene Steine weichen um einige Prozent ab.' +
+        '</div>';
+      return;
+    }
+
+    // --- Maße aus dem Gewicht ---
+    var roh = stKaratInput.value;
+    if (roh.trim() === "") {
+      stErgebnis.innerHTML = '<div class="placeholder">Gewicht eingeben, um die Maße zu sehen.</div>';
+      return;
+    }
+    var ziel = parseDe(roh);
+    if (isNaN(ziel)) {
+      stErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
+      return;
+    }
+    if (ziel <= 0) {
+      stErgebnis.innerHTML = '<div class="hint">Bitte ein Gewicht größer als 0 eingeben.</div>';
+      return;
+    }
+
+    /* Umgekehrt: mit den üblichen Proportionen der Form ist alles an die
+     * Breite gekoppelt — Länge = Breite · Verhältnis, Tiefe = Breite · Tiefenanteil.
+     * Eingesetzt ergibt sich Breite³, also die dritte Wurzel. */
+    var nenner = form.lb * form.tiefe * form.f * stein.sg;
+    var breiteZ = Math.cbrt(ziel * 200 / nenner);
+    var laengeZ = breiteZ * form.lb;
+    var tiefeZ = breiteZ * form.tiefe;
+
+    stErgebnis.innerHTML =
+      '<div class="result-main">' +
+        '<div class="label">' + (form.rund ? "Durchmesser" : "Maße") + '</div>' +
+        '<div class="value">' +
+          (form.rund ? fmt(breiteZ, 1) : fmt(laengeZ, 1) + ' × ' + fmt(breiteZ, 1)) +
+          '<span class="unit">mm</span></div>' +
+        '<div class="extra-note">' + fmt(ziel, 2) + ' ct · ' + form.name + ' · ' + stein.name + '</div>' +
+      '</div>' +
+      stUmriss(form, laengeZ, breiteZ) +
+      '<div class="result-grid">' +
+        (form.rund
+          ? stKachel("Ø", fmt(breiteZ, 2) + " mm")
+          : stKachel("Länge", fmt(laengeZ, 2) + " mm") + stKachel("Breite", fmt(breiteZ, 2) + " mm")) +
+        stKachel("Tiefe", fmt(tiefeZ, 2) + " mm") +
+        stKachel("Dichte", fmt(stein.sg, 2) + " g/cm³") +
+      '</div>' +
+      '<div class="st-rechenweg">' +
+        '<strong>Angesetzt:</strong> ' +
+        (form.rund ? "" : "Länge zu Breite " + mkMassZahl(form.lb) + " : 1 · ") +
+        'Tiefe ' + fmt(form.tiefe * 100, 0) + ' % der Breite. ' +
+        'Andere Proportionen ergeben bei gleichem Gewicht andere Maße — ein ' +
+        'flacher Stein wird breiter, ein steiler schmaler.' +
+      '</div>';
+  }
+
+  function stModusAnzeigen() {
+    stGewichtFelder.hidden = stMode !== "gewicht";
+    stMasseFelder.hidden = stMode !== "masse";
+    // Die Rundiste ist ein Zuschlag auf ein geschätztes Gewicht — beim
+    // umgekehrten Weg gibt man das Gewicht ja bereits fertig vor.
+    stRundisteFeld.hidden = stMode !== "gewicht";
+  }
+
+  stModeTasten.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      stModeTasten.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      stMode = btn.getAttribute("data-mode");
+      stModusAnzeigen();
+      berechneStein();
+    });
+  });
+
+  stFormSelect.addEventListener("change", function () {
+    // Rund hat zwei Maßfelder, alle anderen drei — die Felder werden neu
+    // aufgebaut und beginnen leer, damit keine Breite als Ø stehenbleibt.
+    stBaueMassfelder();
+    berechneStein();
+  });
+  stSteinSelect.addEventListener("change", berechneStein);
+  stRundisteSelect.addEventListener("change", berechneStein);
+  stKaratInput.addEventListener("input", berechneStein);
+  stMasseHost.addEventListener("input", berechneStein);
+
+  stFormSelect.innerHTML = ST_FORMEN.map(function (f) {
+    return '<option value="' + f.id + '">' + f.name + '</option>';
+  }).join("");
+  stSteinSelect.innerHTML = ST_STEINE.map(function (s) {
+    return '<option value="' + s.id + '">' + s.name + '</option>';
+  }).join("");
+  stRundisteSelect.innerHTML = ST_RUNDISTE.map(function (r) {
+    return '<option value="' + r.id + '">' + r.name + '</option>';
+  }).join("");
+
+  stBaueMassfelder();
+  stModusAnzeigen();
+  berechneStein();
 })();
 </script>
 
