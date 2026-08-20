@@ -1400,6 +1400,87 @@
 
   .mk-kursstand.fehler { color: var(--danger); }
 
+  /* --- Legierung: Einwaage der einzelnen Metalle -----------------------
+     Der Balken zeigt die Anteile in den Farben der Metalle selbst — damit
+     sieht man auf einen Blick, wie viel Zuschlag im Verhältnis zum Edelmetall
+     drinsteckt, noch bevor man die Zahlen liest. */
+  .leg-gruppe-titel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 0.7rem;
+    padding-top: 0.4rem;
+  }
+
+  .leg-paar { display: flex; gap: 0.5rem; }
+  .leg-paar .field { flex: 1; min-width: 0; }
+  .leg-paar select.wheel-select { display: block; width: 100%; }
+
+  .leg-balken {
+    display: flex;
+    height: 1.5rem;
+    border-radius: 0.4rem;
+    overflow: hidden;
+    margin: 1.1rem 0 1.2rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+
+  .leg-balken-teil { height: 100%; }
+
+  .leg-liste { margin-top: 0.2rem; }
+
+  .leg-zeile {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.42rem 0;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .leg-zeile:last-child { border-bottom: none; }
+
+  .leg-punkt {
+    flex: 0 0 auto;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 50%;
+    align-self: center;
+  }
+
+  .leg-name { flex: 1; min-width: 0; color: var(--text); }
+  .leg-anteil { color: var(--text-dim); font-size: 0.82rem; white-space: nowrap; }
+
+  .leg-gramm {
+    font-weight: 700;
+    color: var(--gold);
+    white-space: nowrap;
+    min-width: 4.2rem;
+    text-align: right;
+  }
+
+  .leg-zeile.leg-summe {
+    margin-top: 0.4rem;
+    padding-top: 0.6rem;
+    border-top: 2px solid var(--border);
+    border-bottom: none;
+    font-weight: 600;
+  }
+
+  .leg-zeile.leg-summe .leg-gramm { color: var(--text); }
+
+  .leg-rezept {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+  }
+
   /* Der Händler-Knopf sitzt in der Ecke der Ergebniskarte statt neben der
      Zahl wie im Goldankauf: die große mittige Summe bleibt so, wie sie ist,
      und der Knopf drängt sich nicht dazwischen. Gleiche Optik, gleiche
@@ -1443,6 +1524,7 @@
   <button class="tab" data-tab="wert">Materialwert</button>
   <button class="tab" data-tab="goldankauf">Goldankauf</button>
   <button class="tab" data-tab="metallkalk">Metallkalkulation</button>
+  <button class="tab" data-tab="legierung">Legierung</button>
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
 </nav>
@@ -1931,6 +2013,65 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-legierung">
+    <div class="card">
+      <div class="field">
+        <label>Was möchtest du tun?</label>
+        <div class="segmented" id="leg-mode">
+          <button type="button" data-mode="ansetzen" class="active">Neu ansetzen</button>
+          <button type="button" data-mode="umlegieren">Umlegieren</button>
+        </div>
+      </div>
+
+      <div id="leg-ansetzen-felder">
+        <div class="field">
+          <label for="leg-menge">Zielmenge</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="done" id="leg-menge" placeholder="z. B. 20">
+            <span class="unit">g</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="leg-um-felder" hidden>
+        <div class="leg-gruppe-titel">Vorhandenes Material</div>
+        <div class="field">
+          <label for="leg-vorhanden">Menge</label>
+          <div class="input-with-unit">
+            <input type="text" inputmode="decimal" enterkeyhint="next" id="leg-vorhanden" placeholder="z. B. 10">
+            <span class="unit">g</span>
+          </div>
+        </div>
+        <div class="leg-paar">
+          <div class="field">
+            <label for="leg-ist-sorte">Legierung</label>
+            <select class="wheel-select klein" id="leg-ist-sorte"></select>
+          </div>
+          <div class="field">
+            <label for="leg-ist-fein">Feingehalt</label>
+            <select class="wheel-select klein" id="leg-ist-fein"></select>
+          </div>
+        </div>
+        <div class="leg-gruppe-titel">Ziel</div>
+      </div>
+
+      <div class="leg-paar">
+        <div class="field">
+          <label for="leg-sorte">Legierung</label>
+          <select class="wheel-select klein" id="leg-sorte"></select>
+        </div>
+        <div class="field">
+          <label for="leg-fein">Feingehalt</label>
+          <select class="wheel-select klein" id="leg-fein"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="leg-ergebnis">
+      <div class="placeholder">Menge eingeben, um die Einwaage zu sehen.</div>
+    </div>
+  </section>
+
   <section class="panel" id="panel-einheiten">
     <div class="card">
       <div class="field">
@@ -2033,8 +2174,6 @@
   // "Materialwert", "Goldankauf" und "Einheiten" stehen als eigene Panels
   // fest im HTML und fehlen hier deshalb bewusst.
   var kommende = [
-    { id: "legierung", tab: "Legierung",       titel: "3 · Legierungsrechnung",
-      text: "Wie viel Feingold und wie viel Zuschlag für x Gramm in y Karat. Dazu der umgekehrte Fall: vorhandenes Material hochlegieren oder abstrecken." },
     { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
       text: "Nachschlagetafel mit Name und Umriss." },
     { id: "stein",    tab: "Steingewicht",     titel: "5 · Steingewicht",
@@ -5596,6 +5735,285 @@
   mkHaendlerBereichSetzen(!mkHaendlerBereich.hidden);
   mkZeigeKursPlatzhalter();
   berechneMetallkalk();
+
+  /* --- Modul 3: Legierungsrechnung --------------------------------------
+   *
+   * Zwei Fälle, wie in der Werkstatt:
+   *
+   *   Neu ansetzen — "ich brauche 20 g Gelbgold 585": die Zielmenge wird
+   *   nach den Anteilen der Legierung auf die einzelnen Metalle verteilt.
+   *
+   *   Umlegieren — "ich habe 10 g 585 und will 750 daraus machen": es wird
+   *   nur DAZUGEGEBEN, nie entnommen. Gesucht ist also die kleinste Endmenge,
+   *   bei der kein Metall über sein Ziel hinausschießt:
+   *
+   *     Faktor = max über alle Metalle von (Anteil_ist / Anteil_ziel)
+   *     Endmenge = Vorhandenes · Faktor
+   *     Zugabe je Metall = Endmenge · Anteil_ziel − Vorhandenes · Anteil_ist
+   *
+   *   Das deckt beide Richtungen mit einer Formel ab: Hochlegieren treibt der
+   *   Zuschlag (er bleibt liegen, Gold kommt dazu), Abstrecken das Gold. Ein
+   *   Metall, das im Ziel gar nicht vorkommt, im Vorhandenen aber schon —
+   *   Palladium aus Weißgold etwa —, lässt sich durch Zugeben nicht mehr
+   *   loswerden; dieser Fall wird gemeldet statt still falsch gerechnet.
+   *
+   * Die Zuschlag-Rezepte sind die geläufigen Verhältnisse. Fertige
+   * Legierungszusätze vom Händler enthalten oft noch Zink oder Silizium als
+   * Desoxidationsmittel; das steht hier bewusst nicht drin, weil die Anteile
+   * je Lieferant verschieden sind und eine erfundene Zahl schlechter wäre
+   * als gar keine. Der Hinweis unter dem Ergebnis sagt das auch.
+   */
+  var LEG_ELEMENTE = ["au", "pd", "ag", "cu"];
+  var LEG_ELEMENT = {
+    au: { name: "Feingold",   farbe: "#d4af37" },
+    pd: { name: "Palladium",  farbe: "#9fb4c7" },
+    ag: { name: "Feinsilber", farbe: "#cfd6dc" },
+    cu: { name: "Kupfer",     farbe: "#b87333" }
+  };
+
+  var LEG_SORTEN = [
+    { id: "gelb",  name: "Gelbgold",  basis: "au", fein: "XAU", zuschlag: { ag: 0.5, cu: 0.5 } },
+    { id: "rose",  name: "Roségold",  basis: "au", fein: "XAU", zuschlag: { ag: 0.3, cu: 0.7 } },
+    { id: "rot",   name: "Rotgold",   basis: "au", fein: "XAU", zuschlag: { ag: 0.1, cu: 0.9 } },
+    { id: "gruen", name: "Grüngold",  basis: "au", fein: "XAU", zuschlag: { ag: 1 } },
+    // Weißgold auf Palladiumbasis: der Palladiumanteil bemisst sich am
+    // GESAMTgewicht, nicht am Zuschlag — dieselbe Zahl wie in Materialwert,
+    // Goldankauf und Metallkalkulation.
+    { id: "weiss", name: "Weißgold",  basis: "au", fein: "XWG",
+      pdAnteil: WG_PD_ANTEIL / 100, zuschlag: { ag: 1 } },
+    { id: "silber", name: "Silber",   basis: "ag", fein: "XAG", zuschlag: { cu: 1 } }
+  ];
+
+  function legSorte(id) {
+    return LEG_SORTEN.filter(function (s) { return s.id === id; })[0] || LEG_SORTEN[0];
+  }
+
+  // Anteile am Gesamtgewicht, als Bruchteile von 1.
+  function legAnteile(sorte, promille) {
+    var anteile = { au: 0, pd: 0, ag: 0, cu: 0 };
+    var basis = promille / 1000;
+    anteile[sorte.basis] += basis;
+    var rest = 1 - basis;
+    if (sorte.pdAnteil) {
+      var pd = Math.min(sorte.pdAnteil, rest);
+      anteile.pd += pd;
+      rest -= pd;
+    }
+    Object.keys(sorte.zuschlag).forEach(function (e) {
+      anteile[e] += rest * sorte.zuschlag[e];
+    });
+    return anteile;
+  }
+
+  // Rezepttext des Zuschlags, damit sichtbar ist, womit gerechnet wurde.
+  function legRezeptText(sorte, promille) {
+    var teile = [];
+    if (sorte.pdAnteil) {
+      teile.push(fmt(sorte.pdAnteil * 100, 0) + " % Palladium vom Gesamtgewicht");
+    }
+    var zus = Object.keys(sorte.zuschlag).map(function (e) {
+      return fmt(sorte.zuschlag[e] * 100, 0) + " % " + LEG_ELEMENT[e].name;
+    });
+    if (promille >= 1000) return "Bei " + promille + " ‰ bleibt kein Zuschlag.";
+    teile.push("Zuschlag" + (sorte.pdAnteil ? " danach" : "") + ": " + zus.join(", "));
+    return teile.join(" · ");
+  }
+
+  var legMode = "ansetzen";
+  var legModeTasten = document.querySelectorAll("#leg-mode button");
+  var legAnsetzenFelder = document.getElementById("leg-ansetzen-felder");
+  var legUmFelder = document.getElementById("leg-um-felder");
+  var legMengeInput = document.getElementById("leg-menge");
+  var legVorhandenInput = document.getElementById("leg-vorhanden");
+  var legIstSorteSelect = document.getElementById("leg-ist-sorte");
+  var legIstFeinSelect = document.getElementById("leg-ist-fein");
+  var legSorteSelect = document.getElementById("leg-sorte");
+  var legFeinSelect = document.getElementById("leg-fein");
+  var legErgebnis = document.getElementById("leg-ergebnis");
+
+  function legFuelleSorten(select) {
+    select.innerHTML = LEG_SORTEN.map(function (s) {
+      return '<option value="' + s.id + '">' + s.name + '</option>';
+    }).join("");
+  }
+
+  function legFuelleFein(select, sorte, behalten) {
+    var alt = behalten ? select.value : null;
+    select.innerHTML = FEINGEHALTE[sorte.fein].map(function (w) {
+      var zusatz = FEIN_ZUSATZ[sorte.fein] && FEIN_ZUSATZ[sorte.fein][w];
+      return '<option value="' + w + '">' + w + (zusatz ? " · " + zusatz : "") + '</option>';
+    }).join("");
+    // Die alte Wahl mitnehmen, wenn es sie in der neuen Liste noch gibt —
+    // sonst der gängige Stempel dieser Sorte.
+    select.value = (alt && FEINGEHALTE[sorte.fein].indexOf(parseFloat(alt)) >= 0)
+      ? alt : String(FEIN_START[sorte.fein]);
+  }
+
+  function legBalken(mengen, gesamt) {
+    if (!(gesamt > 0)) return "";
+    return '<div class="leg-balken">' + LEG_ELEMENTE.map(function (e) {
+      var anteil = mengen[e] / gesamt;
+      if (!(anteil > 0.0005)) return "";
+      return '<div class="leg-balken-teil" style="width:' + (anteil * 100).toFixed(3) +
+             '%;background:' + LEG_ELEMENT[e].farbe + '"></div>';
+    }).join("") + '</div>';
+  }
+
+  function legListe(mengen, gesamt, summenTitel) {
+    // Metalle mit 0,00 g bleiben weg — eine Zeile "Kupfer 0,00 g" hilft weder
+    // beim Einwiegen noch beim Nachrechnen.
+    var zeilen = LEG_ELEMENTE.map(function (e) {
+      var g = mengen[e];
+      if (!(g > 0.0005)) return "";
+      return '<div class="leg-zeile">' +
+        '<span class="leg-punkt" style="background:' + LEG_ELEMENT[e].farbe + '"></span>' +
+        '<span class="leg-name">' + LEG_ELEMENT[e].name + '</span>' +
+        '<span class="leg-anteil">' + fmt(gesamt > 0 ? mengen[e] / gesamt * 100 : 0, 1) + ' %</span>' +
+        '<span class="leg-gramm">' + fmt(g, 2) + ' g</span>' +
+      '</div>';
+    }).join("");
+    return '<div class="leg-liste">' + zeilen +
+      '<div class="leg-zeile leg-summe">' +
+        '<span class="leg-punkt" style="background:transparent"></span>' +
+        '<span class="leg-name">' + summenTitel + '</span>' +
+        '<span class="leg-gramm">' + fmt(gesamt, 2) + ' g</span>' +
+      '</div></div>';
+  }
+
+  function berechneLegierung() {
+    var zielSorte = legSorte(legSorteSelect.value);
+    var zielFein = parseFloat(legFeinSelect.value);
+    var zielAnteile = legAnteile(zielSorte, zielFein);
+    var rezept = '<div class="leg-rezept">' + legRezeptText(zielSorte, zielFein) +
+      '. Fertige Legierungszusätze enthalten je nach Lieferant zusätzlich Zink ' +
+      'oder Silizium — die Anteile hier sind die reinen Metalle.</div>';
+
+    if (legMode === "ansetzen") {
+      var roh = legMengeInput.value;
+      if (roh.trim() === "") {
+        legErgebnis.innerHTML = '<div class="placeholder">Zielmenge eingeben, um die Einwaage zu sehen.</div>';
+        return;
+      }
+      var menge = parseDe(roh);
+      if (isNaN(menge)) {
+        legErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
+        return;
+      }
+      if (menge <= 0) {
+        legErgebnis.innerHTML = '<div class="hint">Bitte eine Menge größer als 0 eingeben.</div>';
+        return;
+      }
+
+      var mengen = {};
+      LEG_ELEMENTE.forEach(function (e) { mengen[e] = menge * zielAnteile[e]; });
+
+      legErgebnis.innerHTML =
+        '<div class="result-main">' +
+          '<div class="label">Einwaage</div>' +
+          '<div class="value">' + fmt(menge, 2) + '<span class="unit">g</span></div>' +
+          '<div class="extra-note">' + zielSorte.name + " " + zielFein + '</div>' +
+        '</div>' +
+        legBalken(mengen, menge) +
+        legListe(mengen, menge, "Zusammen") +
+        rezept;
+      return;
+    }
+
+    // --- Umlegieren ---
+    var rohV = legVorhandenInput.value;
+    if (rohV.trim() === "") {
+      legErgebnis.innerHTML = '<div class="placeholder">Vorhandene Menge eingeben, um zu sehen, was dazu muss.</div>';
+      return;
+    }
+    var vorhanden = parseDe(rohV);
+    if (isNaN(vorhanden)) {
+      legErgebnis.innerHTML = '<div class="hint">Bitte eine gültige Zahl eingeben.</div>';
+      return;
+    }
+    if (vorhanden <= 0) {
+      legErgebnis.innerHTML = '<div class="hint">Bitte eine Menge größer als 0 eingeben.</div>';
+      return;
+    }
+
+    var istSorte = legSorte(legIstSorteSelect.value);
+    var istFein = parseFloat(legIstFeinSelect.value);
+    var istAnteile = legAnteile(istSorte, istFein);
+
+    // Kleinste Endmenge, bei der kein Metall entnommen werden müsste.
+    var faktor = 1, unmoeglich = null;
+    LEG_ELEMENTE.forEach(function (e) {
+      if (!(istAnteile[e] > 1e-9)) return;
+      if (!(zielAnteile[e] > 1e-9)) { unmoeglich = e; return; }
+      faktor = Math.max(faktor, istAnteile[e] / zielAnteile[e]);
+    });
+
+    if (unmoeglich) {
+      legErgebnis.innerHTML = '<div class="hint">' +
+        LEG_ELEMENT[unmoeglich].name + ' steckt im vorhandenen Material (' +
+        istSorte.name + ' ' + istFein + '), kommt in ' + zielSorte.name + ' ' + zielFein +
+        ' aber nicht vor. Durch Zugeben allein lässt es sich nicht entfernen — ' +
+        'dafür bräuchte es Scheidung.</div>';
+      return;
+    }
+
+    var endmenge = vorhanden * faktor;
+    var zugabe = {}, zugabeSumme = 0;
+    LEG_ELEMENTE.forEach(function (e) {
+      var z = endmenge * zielAnteile[e] - vorhanden * istAnteile[e];
+      zugabe[e] = z > 0.0005 ? z : 0;
+      zugabeSumme += zugabe[e];
+    });
+
+    var nichtsZuTun = zugabeSumme <= 0.0005;
+    var endMengen = {};
+    LEG_ELEMENTE.forEach(function (e) { endMengen[e] = endmenge * zielAnteile[e]; });
+
+    legErgebnis.innerHTML =
+      '<div class="result-main">' +
+        '<div class="label">' + (nichtsZuTun ? "Passt bereits" : "Dazugeben") + '</div>' +
+        '<div class="value">' + fmt(zugabeSumme, 2) + '<span class="unit">g</span></div>' +
+        '<div class="extra-note">' + fmt(vorhanden, 2) + ' g ' + istSorte.name + ' ' + istFein +
+          ' → ' + fmt(endmenge, 2) + ' g ' + zielSorte.name + ' ' + zielFein + '</div>' +
+      '</div>' +
+      (nichtsZuTun
+        ? '<div class="leg-rezept" style="border-top:none;padding-top:0">' +
+          'Das vorhandene Material entspricht schon dem Ziel — es muss nichts dazu.</div>'
+        : legListe(zugabe, zugabeSumme, "Zugabe zusammen")) +
+      '<div class="leg-gruppe-titel" style="margin-top:1.4rem">Ergibt</div>' +
+      legBalken(endMengen, endmenge) +
+      legListe(endMengen, endmenge, "Endmenge") +
+      rezept;
+  }
+
+  legModeTasten.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      legModeTasten.forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      legMode = btn.getAttribute("data-mode");
+      legAnsetzenFelder.hidden = legMode !== "ansetzen";
+      legUmFelder.hidden = legMode !== "umlegieren";
+      berechneLegierung();
+    });
+  });
+
+  legSorteSelect.addEventListener("change", function () {
+    legFuelleFein(legFeinSelect, legSorte(legSorteSelect.value), true);
+    berechneLegierung();
+  });
+  legIstSorteSelect.addEventListener("change", function () {
+    legFuelleFein(legIstFeinSelect, legSorte(legIstSorteSelect.value), true);
+    berechneLegierung();
+  });
+  legFeinSelect.addEventListener("change", berechneLegierung);
+  legIstFeinSelect.addEventListener("change", berechneLegierung);
+  legMengeInput.addEventListener("input", berechneLegierung);
+  legVorhandenInput.addEventListener("input", berechneLegierung);
+
+  legFuelleSorten(legSorteSelect);
+  legFuelleSorten(legIstSorteSelect);
+  legFuelleFein(legFeinSelect, legSorte(legSorteSelect.value));
+  legFuelleFein(legIstFeinSelect, legSorte(legIstSorteSelect.value));
+  berechneLegierung();
 })();
 </script>
 
