@@ -52,7 +52,10 @@ test.describe("Reiterleiste", () => {
     await page.click('.tab[data-tab="einheiten"]');
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await page.evaluate(() => window.scrollTo(0, 20));                // Logo halb im Bild
-    await page.click('.tab[data-tab="legierung"]');
+    // Klick direkt auslösen: page.click scrollte den Reiter samt Seite erst ins
+    // Bild und verfälschte so genau das, was hier gemessen wird
+    await page.locator('.tab[data-tab="legierung"]').dispatchEvent("click");
+    await expect(page.locator("#panel-legierung")).toHaveClass(/active/);
     expect(await page.evaluate(() => window.scrollY)).toBe(20);
   });
 
