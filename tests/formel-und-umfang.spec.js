@@ -118,6 +118,13 @@ test.describe("roter Formel-Punkt", () => {
     await pruefe(page, "#einheiten-ergebnis");
   });
 
+  test("Mohshärte, mit und ohne Auswahl", async ({ page }) => {
+    await reiter(page, "mohs");
+    await pruefe(page, "#mh-detail");
+    await page.locator(".mh-zeile").first().click();
+    await pruefe(page, "#mh-detail");
+  });
+
   test("Ring ändern, mit und ohne DIN", async ({ page }) => {
     await reiter(page, "verkleinern");
     await pruefe(page, "#rv-ergebnis");
@@ -126,6 +133,7 @@ test.describe("roter Formel-Punkt", () => {
   });
 });
 
-test("Mohshärte ist noch Platzhalter, alle anderen Reiter sind fertig", async ({ page }) => {
-  expect(await page.locator(".tab.pending").allInnerTexts()).toEqual(["Mohshärte"]);
+test("kein Reiter ist mehr Platzhalter", async ({ page }) => {
+  await expect(page.locator(".tab.pending")).toHaveCount(0);
+  await expect(page.locator(".badge")).toHaveCount(0);
 });

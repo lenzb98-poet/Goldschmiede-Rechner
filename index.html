@@ -102,9 +102,6 @@
     border-color: var(--gold);
   }
 
-  .tab.pending { opacity: 0.62; }
-  .tab.pending.active { opacity: 1; }
-
   main {
     padding: 1rem;
     max-width: 640px;
@@ -457,30 +454,6 @@
     color: var(--text-dim);
     font-size: 1.05rem;
     padding: 1rem;
-  }
-
-  /* --- noch nicht gebaute Module --- */
-  .soon h2 {
-    margin: 0 0 0.5rem;
-    font-size: 1.35rem;
-    color: var(--gold);
-  }
-
-  .soon p {
-    margin: 0 0 1.1rem;
-    font-size: 1.05rem;
-    line-height: 1.5;
-    color: var(--text-dim);
-  }
-
-  .badge {
-    display: inline-block;
-    border: 2px dashed var(--gold-dim);
-    border-radius: 0.6rem;
-    padding: 0.6rem 1rem;
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: var(--gold-dim);
   }
 
   /* --- Erweiterte Einstellungen (Zugabe, Korrekturfaktor) --- */
@@ -1677,8 +1650,167 @@
     cursor: pointer;
   }
 
+  /* --- Mohshärte -------------------------------------------------------
+     Oben die Skala als Leiter mit dem gewählten Stein, darunter Suche und
+     Liste. Jede Zeile trägt eine kleine Skala 1–10 mit der Spanne des
+     Steins — so lassen sich Härten auch ohne Zahlen vergleichen. */
+  .mh-kopf {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-right: 2.4rem;          /* Platz für den Formel-Punkt */
+  }
+  .mh-name { font-size: 1.45rem; font-weight: 700; color: var(--text); }
+  .mh-auch { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.15rem; }
+  .mh-wert {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--gold);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mh-leiter { display: block; width: 100%; height: auto; margin: 0.9rem 0 0.6rem; }
+  .mh-leiter text { dominant-baseline: central; }
+  .mh-stufe { fill: var(--gold-dim); font-size: 12px; font-weight: 700; text-anchor: middle; }
+  .mh-mineral { fill: var(--text-dim); font-size: 12.5px; }
+  .mh-mineral.treffer { fill: var(--gold); font-weight: 700; }
+  .mh-achse { stroke: var(--border); stroke-width: 2; stroke-linecap: round; }
+  .mh-strich { stroke: var(--border); stroke-width: 1.5; }
+  .mh-marke { fill: var(--text-dim); font-size: 10px; font-style: italic; text-anchor: end; opacity: 0.8; }
+  .mh-marke-punkt { fill: var(--text-dim); }
+  .mh-grenze { stroke: var(--gold-dim); stroke-width: 1; stroke-dasharray: 3 3; }
+  .mh-grenze-text { fill: var(--gold-dim); font-size: 10px; text-anchor: end; }
+  .mh-band { fill: var(--gold); }
+  .mh-etikett-grund { fill: var(--bg); stroke: var(--gold); stroke-width: 1; }
+  .mh-etikett { fill: var(--gold); font-size: 12.5px; font-weight: 700; }
+
+  .mh-urteil {
+    display: inline-block;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .mh-urteil-gut { color: var(--gold); border-color: var(--gold-dim); background: rgba(212, 175, 55, 0.10); }
+  .mh-urteil-mittel { color: var(--text); border-color: var(--text-dim); }
+  .mh-urteil-weich { color: var(--danger); border-color: var(--danger); }
+
+  .mh-text {
+    margin: 0.55rem 0 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+  .mh-hinweis { margin: 1rem 0 0; }
+  .mh-hinweis p { margin: 0; }
+
+  /* Suchfeld schlanker als die großen Zahlenfelder der Rechner */
+  #mh-suche { font-size: 1.15rem; padding: 0.8rem 0.9rem; }
+
+  .mh-filter button { padding: 0.65rem 0.3rem; font-size: 0.92rem; }
+
+  .mh-sortierung {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 1rem 0 0.3rem;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+  }
+  .mh-sortierung span { margin-right: 0.2rem; }
+  .mh-sortierung button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font: inherit;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .mh-sortierung button.active { color: var(--gold); border-color: var(--gold-dim); }
+
+  .mh-zeile {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--border);
+    padding: 0.8rem 0.5rem;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .mh-zeile:first-child { border-top: 0; }
+  .mh-zeile.aktiv {
+    background: rgba(212, 175, 55, 0.08);
+    box-shadow: inset 0 0 0 1px var(--gold-dim);
+    border-radius: 0.6rem;
+  }
+  .mh-zeile.aktiv + .mh-zeile { border-top-color: transparent; }
+
+  .mh-zeile-kopf {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.8rem;
+  }
+  .mh-zeile-name { font-size: 1rem; font-weight: 600; }
+  .mh-tag {
+    margin-left: 0.45rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .mh-zeile-wert {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Mini-Skala: neun Abschnitte zwischen 1 und 10 als feine Striche */
+  .mh-spur {
+    position: relative;
+    display: block;
+    height: 6px;
+    margin: 0.5rem 3px 0.1rem;
+    border-radius: 3px;
+    background-color: var(--bg);
+    background-image: repeating-linear-gradient(to right,
+      var(--border) 0, var(--border) 1px, transparent 1px, transparent calc(100% / 9));
+  }
+  .mh-spur-band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 3px;
+    background: var(--gold);
+  }
+
+  .mh-zeile-fuss {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-top: 0.35rem;
+  }
+  .mh-zeile-auch { font-size: 0.78rem; color: var(--text-dim); }
+  .mh-rel { font-size: 0.76rem; font-weight: 600; white-space: nowrap; }
+  .mh-rel-haerter { color: var(--gold); }
+  .mh-rel-weicher { color: var(--text-dim); }
+  .mh-rel-gleich { color: var(--text); }
+
   /* Der Rechenweg klappt hier oben auf statt unten — also Linie darunter */
-  .sf-karte > .formel-box {
+  .sf-karte > .formel-box,
+  #mh-detail > .formel-box {
     margin: 0 0 1rem;
     padding: 0 0 1rem;
     border-top: 0;
@@ -1733,6 +1865,7 @@
   <button class="tab" data-tab="schliff">Schliffformen</button>
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
+  <button class="tab" data-tab="mohs">Mohshärte</button>
 </nav>
 
 <main id="panels">
@@ -2422,6 +2555,29 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-mohs">
+    <div class="card" id="mh-detail"></div>
+
+    <div class="card">
+      <div class="field">
+        <label for="mh-suche">Stein suchen</label>
+        <input type="text" id="mh-suche" enterkeyhint="search" autocomplete="off"
+               spellcheck="false" placeholder="z. B. Topas oder Beryll">
+      </div>
+      <div class="segmented mh-filter" id="mh-filter">
+        <button type="button" data-filter="alle" class="active">Alle</button>
+        <button type="button" data-filter="stein">Schmucksteine</button>
+        <button type="button" data-filter="alltag">Alltag</button>
+      </div>
+      <div class="mh-sortierung" id="mh-sortierung">
+        <span>Sortiert</span>
+        <button type="button" data-sort="haerte" class="active">nach Härte</button>
+        <button type="button" data-sort="name">A–Z</button>
+      </div>
+      <div class="mh-liste" id="mh-liste"></div>
+    </div>
+  </section>
+
 </main>
 
 <script>
@@ -2487,37 +2643,7 @@
     knopf.setAttribute("aria-expanded", String(!box.hidden));
   });
 
-  // --- Module, die noch kommen (Kurzbeschreibungen aus der Spezifikation) ---
-  // "Materialwert", "Goldankauf" und "Einheiten" stehen als eigene Panels
-  // fest im HTML und fehlen hier deshalb bewusst.
-  var kommende = [
-    { id: "mohs",     tab: "Mohshärte",   titel: "8 · Mohshärte",
-      text: "Nachschlag, bei dem Stein, Name und Härte zusammen zu sehen sind." }
-  ];
-
   var tabBar = document.getElementById("tabs");
-  var panelHost = document.getElementById("panels");
-
-  kommende.forEach(function (m) {
-    var btn = document.createElement("button");
-    btn.className = "tab pending";
-    btn.setAttribute("data-tab", m.id);
-    btn.textContent = m.tab;
-    tabBar.appendChild(btn);
-
-    var sec = document.createElement("section");
-    sec.className = "panel";
-    sec.id = "panel-" + m.id;
-    sec.innerHTML =
-      '<div class="card soon">' +
-        '<h2></h2>' +
-        '<p></p>' +
-        '<div class="badge">wird bald erstellt</div>' +
-      '</div>';
-    sec.querySelector("h2").textContent = m.titel;
-    sec.querySelector("p").textContent = m.text;
-    panelHost.appendChild(sec);
-  });
 
   // --- Tab-Umschaltung ---
   var tabs = tabBar.querySelectorAll(".tab");
@@ -7130,6 +7256,323 @@
   sfKaratSelect.addEventListener("change", zeigeSchliffformen);
   sfSteinSelect.addEventListener("change", zeigeSchliffformen);
   zeigeSchliffformen();
+
+  /* --- Modul 8: Mohshärte -----------------------------------------------
+   *
+   * Nachschlagen statt rechnen: wo steht ein Stein auf der Skala, was ritzt
+   * ihn, was ritzt er — und taugt er für einen Ring, der täglich getragen
+   * wird. Dafür ist die Grenze 7 entscheidend: Hausstaub enthält Quarz,
+   * und alles, was weicher ist, wird beim Tragen langsam matt.
+   *
+   * Härten als Spanne min…max, weil natürliche Steine schwanken. Der
+   * Vergleich zweier Einträge rechnet ehrlich mit den Spannen: A ritzt B
+   * nur, wenn A selbst im ungünstigsten Fall härter ist als B im günstigsten.
+   *
+   * art: "stein" · "organisch" (beide Schmucksteine) · "alltag" (Werkzeug,
+   * Metall, Vergleichsgegenstände) · "mineral" (Referenz der Skala).
+   */
+  var MH_EINTRAEGE = [
+    { name: "Diamant", min: 10, max: 10, art: "stein",
+      hinweis: "Das härteste Mineral — und trotzdem spaltbar: ein harter Schlag in der falschen Richtung kann ihn teilen." },
+    { name: "Moissanit", min: 9.25, max: 9.25, art: "stein", auch: "Siliziumkarbid",
+      hinweis: "Besteht den einfachen Wärmeleit-Diamanttester; erst ein Moissanit-Tester trennt die beiden." },
+    { name: "Rubin", min: 9, max: 9, art: "stein", auch: "Korund",
+      hinweis: "Unbehandelt sehr robust. Mit Bleiglas gefüllte Steine vertragen aber weder Lötflamme noch Beize." },
+    { name: "Saphir", min: 9, max: 9, art: "stein", auch: "Korund",
+      hinweis: "Sehr robust und hitzefest — ein Stein für Ringe, die jeden Tag getragen werden." },
+    { name: "Chrysoberyll", min: 8.5, max: 8.5, art: "stein", auch: "Alexandrit, Katzenauge" },
+    { name: "Zirkonia", min: 8, max: 8.5, art: "stein", auch: "CZ, Cubic Zirconia",
+      hinweis: "Künstlich hergestellt — nicht mit dem natürlichen Zirkon verwechseln." },
+    { name: "Spinell", min: 8, max: 8, art: "stein" },
+    { name: "Topas", min: 8, max: 8, art: "stein",
+      hinweis: "Vollkommen spaltbar: trotz Härte 8 beim Fassen keinen Druck auf eine Kante geben." },
+    { name: "Smaragd", min: 7.5, max: 8, art: "stein", auch: "Beryll",
+      hinweis: "Spröde, fast immer mit Einschlüssen und oft geölt: kein Ultraschall, kein Dampf, keine Hitze." },
+    { name: "Aquamarin", min: 7.5, max: 8, art: "stein", auch: "Beryll" },
+    { name: "Morganit", min: 7.5, max: 8, art: "stein", auch: "Beryll" },
+    { name: "Turmalin", min: 7, max: 7.5, art: "stein",
+      hinweis: "Kann beim Erhitzen reißen oder die Farbe ändern — vor dem Löten ausfassen." },
+    { name: "Granat", min: 6.5, max: 7.5, art: "stein", auch: "Almandin, Rhodolith, Tsavorit" },
+    { name: "Zirkon", min: 6.5, max: 7.5, art: "stein",
+      hinweis: "Spröde Kanten: die Facettenkanten stoßen beim Tragen leicht ab." },
+    { name: "Amethyst", min: 7, max: 7, art: "stein", auch: "Quarz",
+      hinweis: "Die Farbe kann durch Hitze und starkes Licht verblassen." },
+    { name: "Citrin", min: 7, max: 7, art: "stein", auch: "Quarz" },
+    { name: "Bergkristall", min: 7, max: 7, art: "stein", auch: "Quarz" },
+    { name: "Rosenquarz", min: 7, max: 7, art: "stein", auch: "Quarz" },
+    { name: "Onyx", min: 6.5, max: 7, art: "stein", auch: "Chalcedon, Achat" },
+    { name: "Peridot", min: 6.5, max: 7, art: "stein",
+      hinweis: "Säureempfindlich und empfindlich gegen Temperatursprünge: nicht in die Beize." },
+    { name: "Jadeit", min: 6.5, max: 7, art: "stein", auch: "Jade" },
+    { name: "Tansanit", min: 6, max: 7, art: "stein", auch: "Zoisit",
+      hinweis: "Empfindlich gegen Temperatursprünge und Ultraschall." },
+    { name: "Nephrit", min: 6, max: 6.5, art: "stein", auch: "Jade" },
+    { name: "Mondstein", min: 6, max: 6.5, art: "stein", auch: "Feldspat",
+      hinweis: "Spaltbar — Stöße und Druck auf die Kanten vermeiden." },
+    { name: "Labradorit", min: 6, max: 6.5, art: "stein", auch: "Feldspat" },
+    { name: "Hämatit", min: 5.5, max: 6.5, art: "stein" },
+    { name: "Opal", min: 5.5, max: 6.5, art: "stein",
+      hinweis: "Enthält Wasser: keine Hitze, kein Ultraschall, keine Beize. Kann bei Temperatursprüngen reißen." },
+    { name: "Türkis", min: 5, max: 6, art: "stein",
+      hinweis: "Porös: nimmt Öl, Schweiß und Beize auf und verfärbt sich. Keine Hitze." },
+    { name: "Lapislazuli", min: 5, max: 5.5, art: "stein",
+      hinweis: "Säure- und hitzeempfindlich." },
+    { name: "Obsidian", min: 5, max: 5.5, art: "stein", auch: "vulkanisches Glas" },
+    { name: "Malachit", min: 3.5, max: 4, art: "stein",
+      hinweis: "Weich und säureempfindlich: nicht in die Beize, nicht ins Ultraschallbad." },
+    { name: "Rhodochrosit", min: 3.5, max: 4, art: "stein",
+      hinweis: "Weich, spaltbar und säureempfindlich." },
+    { name: "Koralle", min: 3, max: 4, art: "organisch",
+      hinweis: "Organisch: keine Hitze, keine Säure — die Beize löst sie an." },
+    { name: "Perle", min: 2.5, max: 4.5, art: "organisch",
+      hinweis: "Organisch: Beize, Hitze, Ultraschall und Kosmetik greifen sie an. Als Letztes fassen." },
+    { name: "Bernstein", min: 2, max: 2.5, art: "organisch",
+      hinweis: "Brennbar und säureempfindlich — weit weg von Flamme und Beize." },
+
+    { name: "Hausstaub", min: 7, max: 7, art: "alltag", auch: "Quarzsand",
+      hinweis: "Enthält Quarz. Alles, was weicher ist, wird beim Tragen langsam matt — daher die Grenze 7 für Ringsteine." },
+    { name: "Stahlfeile", min: 6.5, max: 6.5, art: "alltag",
+      hinweis: "Ritzt Glas, aber keinen Quarz. Ritzproben an Schmucksteinen nur, wo es nie jemand sieht — besser gar nicht." },
+    { name: "Glas", min: 5.5, max: 5.5, art: "alltag", auch: "Fensterglas, Glasimitation",
+      hinweis: "Glasimitationen liegen um 5,5: nach einiger Tragezeit sind ihre Kanten rund und bestoßen." },
+    { name: "Taschenmesser", min: 5.5, max: 5.5, art: "alltag" },
+    { name: "Platin", min: 3.5, max: 3.5, art: "alltag",
+      hinweis: "Gilt für reines Metall; Legierungen sind deutlich härter. Metalle misst man in der Werkstatt in Vickers (HV), nicht nach Mohs." },
+    { name: "Kupfer", min: 3, max: 3, art: "alltag" },
+    { name: "Feingold", min: 2.5, max: 3, art: "alltag",
+      hinweis: "Gilt für reines Metall; Legierungen sind deutlich härter. Metalle misst man in der Werkstatt in Vickers (HV), nicht nach Mohs." },
+    { name: "Feinsilber", min: 2.5, max: 3, art: "alltag",
+      hinweis: "Gilt für reines Metall; Legierungen sind deutlich härter. Metalle misst man in der Werkstatt in Vickers (HV), nicht nach Mohs." },
+    { name: "Fingernagel", min: 2.5, max: 2.5, art: "alltag" },
+
+    { name: "Talk", min: 1, max: 1, art: "mineral", auch: "Speckstein" },
+    { name: "Gips", min: 2, max: 2, art: "mineral" },
+    { name: "Calcit", min: 3, max: 3, art: "mineral", auch: "Kalkspat, Marmor" },
+    { name: "Fluorit", min: 4, max: 4, art: "mineral", auch: "Flussspat" },
+    { name: "Apatit", min: 5, max: 5, art: "mineral" },
+    { name: "Orthoklas", min: 6, max: 6, art: "mineral", auch: "Feldspat" },
+    { name: "Quarz", min: 7, max: 7, art: "mineral", auch: "Bergkristall, Amethyst, Citrin" },
+    { name: "Korund", min: 9, max: 9, art: "mineral", auch: "Rubin, Saphir" }
+  ];
+  MH_EINTRAEGE.forEach(function (e, i) { e.id = "mh" + i; });
+
+  // Die zehn Stufen der Skala und die klassischen Vergleiche dazwischen
+  var MH_SKALA = ["Talk", "Gips", "Calcit", "Fluorit", "Apatit",
+                  "Orthoklas", "Quarz", "Topas", "Korund", "Diamant"];
+  var MH_MARKEN = [ { h: 2.5, text: "Fingernagel" },
+                    { h: 5.5, text: "Glas · Messer" },
+                    { h: 6.5, text: "Stahlfeile" } ];
+  var MH_RINGGRENZE = 7;
+  var MH_TAG = { organisch: "organisch", mineral: "Skala", alltag: "Alltag" };
+
+  var mhDetail = document.getElementById("mh-detail");
+  var mhListe = document.getElementById("mh-liste");
+  var mhSuche = document.getElementById("mh-suche");
+  var mhFilterTasten = document.querySelectorAll("#mh-filter button");
+  var mhSortTasten = document.querySelectorAll("#mh-sortierung button");
+  var mhAuswahl = null, mhFilter = "alle", mhSort = "haerte";
+
+  // 7 → "7", 7,5 → "7,5", 9,25 → "9,25"
+  function mhZahl(h) {
+    return fmt(h, h % 1 === 0 ? 0 : (h * 10) % 1 === 0 ? 1 : 2);
+  }
+  function mhHaerte(e) {
+    return e.min === e.max ? mhZahl(e.min) : mhZahl(e.min) + "–" + mhZahl(e.max);
+  }
+
+  // 1: a ritzt b · −1: b ritzt a · 0: Spannen überlappen, etwa gleich hart
+  function mhVergleich(a, b) {
+    if (a.min > b.max) return 1;
+    if (a.max < b.min) return -1;
+    return 0;
+  }
+
+  function mhIstSchmuckstein(e) { return e.art === "stein" || e.art === "organisch"; }
+
+  function mhUrteil(e) {
+    if (!mhIstSchmuckstein(e)) return null;
+    if (e.min >= MH_RINGGRENZE) return { stufe: "gut", titel: "Alltagstauglich, auch im Ring",
+      text: "Mindestens so hart wie der Quarz im Hausstaub (7) — bleibt beim Tragen lange glänzend." };
+    if (e.min >= 5.5) return { stufe: "mittel", titel: "Bedingt alltagstauglich",
+      text: "Weicher als der Quarz im Hausstaub (7): wird im Ring mit der Zeit matt. " +
+            "Geschützt fassen oder lieber für Anhänger und Ohrschmuck." };
+    return { stufe: "weich", titel: "Empfindlich",
+      text: "Kann schon von Glas und Stahl geritzt werden. Am besten in Anhänger, " +
+            "Ohrschmuck oder Brosche, geschützt gefasst." };
+  }
+
+  /* Die Skala als Leiter, 10 oben. Links Stufe und Referenzmineral, dazwischen
+   * die Alltagsvergleiche auf ihren halben Stufen; rechts der gewählte Stein
+   * als Balken über seine Spanne. Die gestrichelte Linie bei 7 ist die
+   * Ringgrenze. */
+  function mhLeiter(e) {
+    var X = 160;
+    function Y(h) { return 16 + (10 - h) * 25; }
+    var t = [];
+
+    t.push('<line class="mh-achse" x1="' + X + '" y1="' + Y(10) + '" x2="' + X + '" y2="' + Y(1) + '"/>');
+    t.push('<line class="mh-grenze" x1="' + (X - 6) + '" y1="' + Y(MH_RINGGRENZE) + '" x2="326" y2="' + Y(MH_RINGGRENZE) + '"/>');
+
+    for (var h = 1; h <= 10; h++) {
+      var y = Y(h);
+      var treffer = e && h >= e.min && h <= e.max;
+      t.push('<text class="mh-stufe" x="12" y="' + y + '">' + h + '</text>');
+      t.push('<text class="mh-mineral' + (treffer ? ' treffer' : '') + '" x="28" y="' + y + '">' + MH_SKALA[h - 1] + '</text>');
+      t.push('<line class="mh-strich" x1="' + (X - 6) + '" y1="' + y + '" x2="' + (X + 6) + '" y2="' + y + '"/>');
+    }
+    MH_MARKEN.forEach(function (m) {
+      t.push('<circle class="mh-marke-punkt" cx="' + X + '" cy="' + Y(m.h) + '" r="2.2"/>');
+      t.push('<text class="mh-marke" x="' + (X - 10) + '" y="' + Y(m.h) + '">' + m.text + '</text>');
+    });
+
+    // Beschriftung der Ringgrenze, außer der Stein steht genau dort —
+    // dann stünde sein Etikett darauf, und das Urteil darunter sagt es ohnehin.
+    var mitte = e ? (Y(e.max) + Y(e.min)) / 2 : null;
+    if (!e || Math.abs(mitte - (Y(MH_RINGGRENZE) + 11)) > 20) {
+      t.push('<text class="mh-grenze-text" x="326" y="' + (Y(MH_RINGGRENZE) + 11) + '">ab 7 ringtauglich</text>');
+    }
+
+    if (e) {
+      var oben = Y(e.max) - 6, unten = Y(e.min) + 6;
+      t.push('<rect class="mh-band" x="' + (X - 6) + '" y="' + oben + '" width="12" height="' + (unten - oben) + '" rx="6"/>');
+      // Breite des Etiketts wird nach dem Einsetzen aus dem echten Text gemessen
+      t.push('<g class="mh-etikett-gruppe">' +
+        '<rect class="mh-etikett-grund" x="' + (X + 14) + '" y="' + (mitte - 12) + '" width="80" height="24" rx="12"/>' +
+        '<text class="mh-etikett" x="' + (X + 25) + '" y="' + mitte + '">' + e.name + '</text>' +
+      '</g>');
+    }
+
+    return '<svg class="mh-leiter" viewBox="0 0 330 250" role="img" aria-label="Mohsskala' +
+      (e ? " mit " + e.name + " bei " + mhHaerte(e) : "") + '">' + t.join("") + '</svg>';
+  }
+
+  function mhZeigeDetail() {
+    var e = mhAuswahl;
+    var urteil = e ? mhUrteil(e) : null;
+
+    var kopf = e
+      ? '<div class="mh-kopf"><div>' +
+          '<div class="mh-name">' + e.name + '</div>' +
+          (e.auch ? '<div class="mh-auch">' + e.auch + '</div>' : '') +
+        '</div><div class="mh-wert">' + mhHaerte(e) + '</div></div>'
+      : '<div class="mh-kopf"><div>' +
+          '<div class="mh-name">Mohsskala</div>' +
+          '<div class="mh-auch">Stein unten antippen, um ihn einzuordnen.</div>' +
+        '</div></div>';
+
+    var bloecke = [
+      { titel: "Ritzregel",
+        formel: "A ritzt B, wenn Härte A > Härte B",
+        schritte: e ? [e.name + " ritzt alles unter " + mhZahl(e.min) +
+                       " und wird von allem über " + mhZahl(e.max) + " geritzt"] : [],
+        hinweis: "Die Skala ordnet nur: jedes Mineral ritzt die darunter. Über Bruch und " +
+                 "Spaltbarkeit sagt sie nichts — Diamant ist am härtesten und lässt sich trotzdem spalten." },
+      { titel: "Die Stufen sind nicht gleich groß",
+        formel: "Korund (9) ≈ 2 × Topas (8),  Diamant (10) ≈ 4 × Korund (9)",
+        hinweis: "Gemessen als absolute Ritzhärte. Der Sprung von 9 auf 10 ist der größte der ganzen Skala." }
+    ];
+    if (urteil) {
+      bloecke.push({ titel: "Alltagstauglichkeit",
+        formel: "Härte (untere Grenze) ≥ 7 — der Quarz im Hausstaub",
+        schritte: [e.name + ": " + mhZahl(e.min) + (e.min >= MH_RINGGRENZE ? " ≥ 7" : " < 7")],
+        ergebnis: urteil.titel });
+    }
+
+    mhDetail.innerHTML = formelAnzeige(bloecke) + kopf + mhLeiter(e) +
+      (urteil ? '<div class="mh-urteil mh-urteil-' + urteil.stufe + '">' + urteil.titel + '</div>' +
+                '<p class="mh-text">' + urteil.text + '</p>' : '') +
+      (e && e.hinweis ? '<div class="info-box mh-hinweis"><div class="info-box-title">In der Werkstatt</div>' +
+                        '<p>' + e.hinweis + '</p></div>' : '');
+
+    // Etikett auf die echte Textbreite ziehen
+    var text = mhDetail.querySelector(".mh-etikett");
+    if (text && text.getBBox) {
+      var breite = text.getBBox().width;
+      if (breite > 0) mhDetail.querySelector(".mh-etikett-grund").setAttribute("width", (breite + 22).toFixed(1));
+    }
+  }
+
+  // Suche ohne Rücksicht auf Groß/klein und Umlaute: "turkis" findet Türkis.
+  // Eine Zahl sucht nach Härte: "7" findet alles, dessen Spanne 7 enthält.
+  function mhNorm(s) {
+    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  }
+
+  function mhTreffer() {
+    var q = mhSuche.value.trim();
+    var alsZahl = /^\d+([.,]\d+)?$/.test(q) ? parseDe(q) : null;
+    var nq = mhNorm(q);
+    return MH_EINTRAEGE.filter(function (e) {
+      if (mhFilter === "stein" && !mhIstSchmuckstein(e)) return false;
+      if (mhFilter === "alltag" && e.art !== "alltag") return false;
+      if (!q) return true;
+      if (alsZahl != null) return alsZahl >= e.min && alsZahl <= e.max;
+      return mhNorm(e.name + " " + (e.auch || "")).indexOf(nq) !== -1;
+    }).sort(function (a, b) {
+      if (mhSort === "name") return a.name.localeCompare(b.name, "de");
+      return (b.min + b.max) - (a.min + a.max) || a.name.localeCompare(b.name, "de");
+    });
+  }
+
+  function mhZeile(e) {
+    var s = mhAuswahl, rel = "";
+    if (s && s !== e) {
+      var v = mhVergleich(e, s);
+      rel = v > 0 ? '<span class="mh-rel mh-rel-haerter">▲ ritzt ' + s.name + '</span>'
+          : v < 0 ? '<span class="mh-rel mh-rel-weicher">▼ wird von ' + s.name + ' geritzt</span>'
+          : '<span class="mh-rel mh-rel-gleich">≈ etwa gleich hart</span>';
+    }
+    var links = (e.min - 1) / 9 * 100, breite = (e.max - e.min) / 9 * 100;
+    return '<button type="button" class="mh-zeile' + (e === s ? ' aktiv' : '') + '" ' +
+             'data-id="' + e.id + '" aria-pressed="' + (e === s) + '">' +
+      '<span class="mh-zeile-kopf">' +
+        '<span class="mh-zeile-name">' + e.name +
+          (MH_TAG[e.art] ? '<span class="mh-tag">' + MH_TAG[e.art] + '</span>' : '') + '</span>' +
+        '<span class="mh-zeile-wert">' + mhHaerte(e) + '</span>' +
+      '</span>' +
+      '<span class="mh-spur"><span class="mh-spur-band" style="left: calc(' + links.toFixed(2) +
+        '% - 3px); width: calc(' + breite.toFixed(2) + '% + 6px)"></span></span>' +
+      (e.auch || rel ? '<span class="mh-zeile-fuss"><span class="mh-zeile-auch">' + (e.auch || "") +
+                       '</span>' + rel + '</span>' : '') +
+    '</button>';
+  }
+
+  function mhZeigeListe() {
+    var liste = mhTreffer();
+    mhListe.innerHTML = liste.length
+      ? liste.map(mhZeile).join("")
+      : '<div class="placeholder">Nichts gefunden.</div>';
+  }
+
+  mhListe.addEventListener("click", function (ev) {
+    var zeile = ev.target.closest(".mh-zeile");
+    if (!zeile) return;
+    var e = MH_EINTRAEGE.filter(function (x) { return x.id === zeile.getAttribute("data-id"); })[0];
+    mhAuswahl = mhAuswahl === e ? null : e;          // nochmal antippen hebt die Wahl auf
+    mhZeigeDetail();
+    mhZeigeListe();
+    // Die Skala steht oben; ist sie aus dem Bild gescrollt, dorthin zurück
+    if (mhAuswahl && mhDetail.getBoundingClientRect().top < 0) {
+      mhDetail.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  function mhUmschalter(tasten, setze) {
+    tasten.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        tasten.forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        setze(btn);
+        mhZeigeListe();
+      });
+    });
+  }
+  mhUmschalter(mhFilterTasten, function (b) { mhFilter = b.getAttribute("data-filter"); });
+  mhUmschalter(mhSortTasten, function (b) { mhSort = b.getAttribute("data-sort"); });
+  mhSuche.addEventListener("input", mhZeigeListe);
+
+  mhZeigeDetail();
+  mhZeigeListe();
 
   // Offline startbar: sw.js legt die Seite beim ersten Besuch im Speicher
   // ab. Geht nur über http(s) — bei file:// oder in Vorschauen still
