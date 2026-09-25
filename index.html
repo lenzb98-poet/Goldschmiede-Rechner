@@ -70,18 +70,36 @@
     .wordmark { font-size: 0.62rem; letter-spacing: 0.26em; }
   }
 
-  nav.tabs {
-    display: flex;
-    overflow-x: auto;
-    gap: 0.5rem;
-    padding: 0.6rem 0.8rem;
+  /* Die Leiste bleibt beim Scrollen oben stehen — auch in langen Modulen
+     (Ringgrößentabelle, Mohs-Liste) ist der Wechsel einen Tipp entfernt.
+     Außen Hintergrund und Linien, innen der seitliche Scroller; dessen
+     Ränder blenden weich aus, solange es dort noch weitergeht. */
+  nav.tab-leiste {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
     border-top: 1px solid var(--border);
-    border-bottom: 2px solid var(--border);
-    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--border);
   }
 
-  nav.tabs::-webkit-scrollbar { height: 6px; }
-  nav.tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.45rem;
+    padding: 0.55rem 0.8rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    --rand-links: 0px;
+    --rand-rechts: 0px;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--rand-links),
+                                        #000 calc(100% - var(--rand-rechts)), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--rand-links),
+                                #000 calc(100% - var(--rand-rechts)), transparent 100%);
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs.mehr-links { --rand-links: 1.6rem; }
+  .tabs.mehr-rechts { --rand-rechts: 1.6rem; }
 
   .tab {
     flex: 0 0 auto;
@@ -89,11 +107,28 @@
     color: var(--text-dim);
     border: 2px solid var(--border);
     border-radius: 0.7rem;
-    padding: 0.8rem 1.2rem;
-    font-size: 1.05rem;
+    padding: 0.62rem 1rem;
+    font-size: 0.98rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  /* Tipp-Rückmeldung: kurzes Eindrücken statt des grauen Aufblitzens,
+     das iOS sonst über jeden Knopf legt. Mit der Tastatur zeigt eine
+     goldene Linie, wo man gerade steht. */
+  button, summary, select { -webkit-tap-highlight-color: transparent; }
+  .tab:active,
+  .segmented button:active,
+  .mode-toggle:active,
+  .mh-zeile:active,
+  .sf-zum-stein:active { transform: scale(0.97); }
+  .segmented button { transition: background-color 0.15s, border-color 0.15s, transform 0.1s; }
+  button:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
   }
 
   .tab.active {
@@ -112,6 +147,7 @@
   .panel.active { display: block; }
 
   .card {
+    scroll-margin-top: 4.6rem;       /* Platz für die klebende Reiterleiste */
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 1rem;
@@ -159,6 +195,9 @@
      rückt daneben, statt sich darüberzulegen. */
   .mk-ergebnis-karte .formel-knopf,
   .ga-ergebnis-karte .formel-knopf { right: 4.3rem; }
+  /* Ohne Händlermodus ist der Händler-Knopf ausgeblendet — dann gehört der
+     Punkt wieder in die Ecke wie überall sonst. */
+  .mk-ergebnis-karte:has(> .haendler-knopf[hidden]) .formel-knopf { right: 0.85rem; }
 
   .formel-box {
     margin-top: 1.2rem;
@@ -440,7 +479,27 @@
   /* Fünf bis sieben Kacheln je Kategorie: bei zwei Spalten bliebe die letzte
      Zeile oft einzeln und wirkt verloren. Drei Spalten nutzen die Breite
      gleichmäßiger, ohne dass die Kürzel-Werte ("31,1035 g") eng werden. */
-  .einheiten-grid { grid-template-columns: repeat(3, 1fr); }
+  .einheiten-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .einheiten-grid .result-item { padding: 0.7rem 0.35rem; }
+  .einheiten-grid .value { font-size: 1.1rem; overflow-wrap: anywhere; }
+
+  /* Kopfzeile trägt den Wert, von dem aus gerechnet wird — und lässt dem
+     Formel-Punkt rechts seinen Platz, statt ihn auf eine Kachel zu legen. */
+  .einheiten-kopf {
+    display: flex;
+    align-items: center;
+    min-height: 1.9rem;
+    margin: 0 2.6rem 0.9rem 0;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+  }
+  .einheiten-kopf strong { color: var(--text); font-weight: 700; margin-right: 0.3rem; }
+  .einheiten-tipp {
+    margin-top: 0.8rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
 
   .hint {
     text-align: center;
@@ -480,6 +539,10 @@
   .mass-paar { display: flex; gap: 0.5rem; margin-bottom: 1.1rem; }
   .mass-paar .field { flex: 1; min-width: 0; margin-bottom: 0; }
   .blech-felder { margin-bottom: 1.1rem; }
+  /* Gleiches für die Hüllen, die je nach Modus ein- und ausgeblendet werden
+     (Legierung, Steingewicht): sonst klebt die nächste Beschriftung an. */
+  .feld-huelle { margin-bottom: 1.1rem; }
+  .feld-huelle > .field:last-child { margin-bottom: 0; }
   .blech-felder > .field:last-child { margin-bottom: 0; }
   /* Die Räder füllen ihre Spalte, sonst schrumpfen sie auf die Breite des
      längsten Eintrags und stehen ungleich nebeneinander. */
@@ -743,6 +806,9 @@
     vertical-align: 0.1rem;
   }
 
+  .result-grid + .info-box { margin-top: 1.1rem; }
+  .card > .info-box:last-child { margin-bottom: 0; }
+
   .info-box.warn { border-left-color: var(--danger); }
   .info-box.warn .info-box-title { color: var(--danger); }
 
@@ -837,10 +903,15 @@
   }
 
   select.wheel-select.klein { font-size: 1.3rem; }
+  /* Allein stehende Auswahlfelder füllen die Kartenbreite wie die
+     Eingabefelder — sonst ist jedes so breit wie sein längster Eintrag
+     und die Karte wirkt unruhig. Neben einem "manuell"-Knopf teilen sie
+     sich die Zeile weiterhin über .field-row. */
+  .field > select.wheel-select { display: block; width: 100%; }
 
   .kurs-retry {
     display: block;
-    margin: 0.8rem auto 0;
+    margin: 0.8rem auto 1rem;
     background: var(--bg);
     color: var(--gold-dim);
     border: 2px solid var(--border);
@@ -1478,8 +1549,11 @@
     padding-top: 0.4rem;
   }
 
-  .leg-paar { display: flex; gap: 0.5rem; }
-  .leg-paar .field { flex: 1; min-width: 0; }
+  /* Wie .mass-paar: das Paar trägt den Abstand, nicht seine Felder — sonst
+     dehnt das linke Feld das Paar am Kartenende um einen Leerraum. */
+  .leg-paar { display: flex; gap: 0.5rem; margin-bottom: 1.1rem; }
+  .leg-paar:last-child { margin-bottom: 0; }
+  .leg-paar .field { flex: 1; min-width: 0; margin-bottom: 0; }
   .leg-paar select.wheel-select { display: block; width: 100%; }
 
   .leg-balken {
@@ -1854,7 +1928,8 @@
   <h1>Goldschmiede-Rechner</h1>
 </header>
 
-<nav class="tabs" id="tabs">
+<nav class="tab-leiste">
+<div class="tabs" id="tabs">
   <button class="tab active" data-tab="ring">Ringrechner</button>
   <button class="tab" data-tab="umfang">Umfang & Ø</button>
   <button class="tab" data-tab="wert">Materialwert</button>
@@ -1866,6 +1941,7 @@
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
   <button class="tab" data-tab="mohs">Mohshärte</button>
+</div>
 </nav>
 
 <main id="panels">
@@ -2362,7 +2438,7 @@
         </div>
       </div>
 
-      <div id="leg-ansetzen-felder">
+      <div class="feld-huelle" id="leg-ansetzen-felder">
         <div class="field">
           <label for="leg-menge">Zielmenge</label>
           <div class="input-with-unit">
@@ -2426,14 +2502,14 @@
         <select class="wheel-select klein" id="st-form"></select>
       </div>
 
-      <div id="st-gewicht-felder">
+      <div class="feld-huelle" id="st-gewicht-felder">
         <div class="field">
           <label>Maße des Steins</label>
           <div class="st-masse" id="st-masse"></div>
         </div>
       </div>
 
-      <div id="st-masse-felder" hidden>
+      <div class="feld-huelle" id="st-masse-felder" hidden>
         <div class="field">
           <label for="st-karat">Gewicht</label>
           <div class="input-with-unit">
@@ -2646,7 +2722,26 @@
   var tabBar = document.getElementById("tabs");
 
   // --- Tab-Umschaltung ---
+  var REITER_SPEICHER = "letzter-reiter";
   var tabs = tabBar.querySelectorAll(".tab");
+
+  // Weicher Rand nur dort, wo die Leiste noch weitergeht
+  function tabRaender() {
+    var rest = tabBar.scrollWidth - tabBar.clientWidth - tabBar.scrollLeft;
+    tabBar.classList.toggle("mehr-links", tabBar.scrollLeft > 2);
+    tabBar.classList.toggle("mehr-rechts", rest > 2);
+  }
+  tabBar.addEventListener("scroll", tabRaender, { passive: true });
+  window.addEventListener("resize", tabRaender);
+
+  function zeigeReiter(tab, sanft) {
+    // Gewählten Reiter in die Mitte der Leiste holen, damit die Nachbarn
+    // links und rechts sichtbar bleiben
+    var ziel = tab.offsetLeft - (tabBar.clientWidth - tab.offsetWidth) / 2;
+    tabBar.scrollTo({ left: Math.max(0, ziel), behavior: sanft ? "smooth" : "auto" });
+    tabRaender();
+  }
+
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
       tabs.forEach(function (t) { t.classList.remove("active"); });
@@ -2655,8 +2750,13 @@
       document.querySelectorAll(".panel").forEach(function (panel) {
         panel.classList.toggle("active", panel.id === "panel-" + target);
       });
+      zeigeReiter(tab, true);
+      // Neues Modul von seinem Anfang an zeigen, nicht mitten drin
+      if (window.scrollY > 0) window.scrollTo(0, 0);
+      try { localStorage.setItem(REITER_SPEICHER, target); } catch (e) { /* privat */ }
     });
   });
+  tabRaender();
 
   // --- Enter springt ins nächste Eingabefeld desselben Panels ---
   document.addEventListener("keydown", function (e) {
@@ -5490,11 +5590,17 @@
         var ergebnis = basiswert / e.proBasis;
         return '<button type="button" class="result-item einheiten-kachel" data-einheit="' + e.id + '">' +
           '<div class="label">' + e.name + '</div>' +
-          '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz + '</div></button>';
+          // Zwischen Zahl und Einheit darf umbrochen werden, innerhalb von "oz t" nicht
+          '<div class="value">' + fmt(ergebnis, e.nachkomma) + ' ' + e.kurz.replace(/ /g, "\u00a0") + '</div></button>';
       }).join("");
 
     var basisName = einheitenKategorie === "gewicht" ? "Gramm" : "Millimeter";
-    einheitenErgebnis.innerHTML = '<div class="result-grid einheiten-grid">' + kacheln + '</div>' +
+    einheitenErgebnis.innerHTML =
+      '<div class="einheiten-kopf"><strong>' +
+        wert.toLocaleString("de-DE", { maximumFractionDigits: 6 }) + ' ' + von.kurz +
+      '</strong> entsprechen</div>' +
+      '<div class="result-grid einheiten-grid">' + kacheln + '</div>' +
+      '<div class="einheiten-tipp">Kachel antippen, um von dort aus weiterzurechnen</div>' +
       formelAnzeige([
         { titel: "Über eine gemeinsame Grundeinheit",
           formel: "Ziel = Wert · Faktor(von) / Faktor(Ziel)",
@@ -7552,7 +7658,8 @@
     mhZeigeDetail();
     mhZeigeListe();
     // Die Skala steht oben; ist sie aus dem Bild gescrollt, dorthin zurück
-    if (mhAuswahl && mhDetail.getBoundingClientRect().top < 0) {
+    var leiste = document.querySelector(".tab-leiste").offsetHeight;
+    if (mhAuswahl && mhDetail.getBoundingClientRect().top < leiste) {
       mhDetail.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   });
@@ -7573,6 +7680,19 @@
 
   mhZeigeDetail();
   mhZeigeListe();
+
+  // Beim nächsten Start dort weitermachen, wo man aufgehört hat. Erst hier,
+  // wenn alle Module aufgebaut sind: ein Reiter kann beim Öffnen etwas
+  // anstoßen (Materialwert fragt dann die Kurse ab).
+  (function () {
+    var letzter = null;
+    try { letzter = localStorage.getItem(REITER_SPEICHER); } catch (e) { /* privat */ }
+    var tab = letzter && tabBar.querySelector('.tab[data-tab="' + letzter + '"]');
+    if (tab && !tab.classList.contains("active")) {
+      tab.click();
+      zeigeReiter(tab, false);
+    }
+  })();
 
   // Offline startbar: sw.js legt die Seite beim ersten Besuch im Speicher
   // ab. Geht nur über http(s) — bei file:// oder in Vorschauen still
