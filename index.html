@@ -1606,6 +1606,85 @@
 
   .st-rechenweg strong { color: var(--text); font-weight: 600; }
 
+  /* --- Schliffformen ---------------------------------------------------
+     Eine Karte, zehn Zeilen: links der Umriss in einer festen Spalte, damit
+     die Texte aller Formen bündig untereinander stehen, rechts die Angaben. */
+  .sf-zeile {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    gap: 0.9rem;
+    align-items: start;
+    padding: 1.1rem 0;
+    border-top: 1px solid var(--border);
+  }
+  .formel-box + .sf-zeile { border-top: 0; padding-top: 0.2rem; }
+  .sf-zeile:last-child { padding-bottom: 0.1rem; }
+
+  .sf-umriss {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 3.6rem;
+  }
+
+  .sf-kopf {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.5rem;
+  }
+  /* Platz für den Formel-Punkt oben rechts in der Karte */
+  .formel-box + .sf-zeile .sf-kopf { padding-right: 2.2rem; }
+
+  .sf-name { font-size: 1.02rem; font-weight: 600; color: var(--text); }
+  .sf-auch { font-size: 0.78rem; color: var(--text-dim); }
+
+  .sf-masse {
+    margin-top: 0.3rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+  .sf-tiefe { font-weight: 400; color: var(--text-dim); font-size: 0.82rem; }
+
+  .sf-daten {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.7rem;
+    row-gap: 0.15rem;
+    margin: 0.55rem 0 0;
+    font-size: 0.8rem;
+  }
+  .sf-daten dt { color: var(--text-dim); }
+  .sf-daten dd { margin: 0; color: var(--text); }
+
+  .sf-fassen {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  .sf-zum-stein {
+    margin-top: 0.55rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--gold);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  /* Der Rechenweg klappt hier oben auf statt unten — also Linie darunter */
+  .sf-karte > .formel-box {
+    margin: 0 0 1rem;
+    padding: 0 0 1rem;
+    border-top: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
   /* Der Händler-Knopf sitzt in der Ecke der Ergebniskarte statt neben der
      Zahl wie im Goldankauf: die große mittige Summe bleibt so, wie sie ist,
      und der Knopf drängt sich nicht dazwischen. Gleiche Optik, gleiche
@@ -1651,6 +1730,7 @@
   <button class="tab" data-tab="metallkalk">Metallkalkulation</button>
   <button class="tab" data-tab="legierung">Legierung</button>
   <button class="tab" data-tab="stein">Steingewicht</button>
+  <button class="tab" data-tab="schliff">Schliffformen</button>
   <button class="tab" data-tab="einheiten">Einheiten</button>
   <button class="tab" data-tab="verkleinern">Ring ändern</button>
 </nav>
@@ -2247,6 +2327,23 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-schliff">
+    <div class="card">
+      <div class="mass-paar">
+        <div class="field">
+          <label for="sf-karat">Maße für</label>
+          <select class="wheel-select klein" id="sf-karat"></select>
+        </div>
+        <div class="field">
+          <label for="sf-stein">Steinart</label>
+          <select class="wheel-select klein" id="sf-stein"></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="sf-liste"></div>
+  </section>
+
   <section class="panel" id="panel-einheiten">
     <div class="card">
       <div class="field">
@@ -2394,8 +2491,6 @@
   // "Materialwert", "Goldankauf" und "Einheiten" stehen als eigene Panels
   // fest im HTML und fehlen hier deshalb bewusst.
   var kommende = [
-    { id: "schliff",  tab: "Schliffformen",    titel: "4 · Schliffformen",
-      text: "Nachschlagetafel mit Name und Umriss." },
     { id: "mohs",     tab: "Mohshärte",   titel: "8 · Mohshärte",
       text: "Nachschlag, bei dem Stein, Name und Härte zusammen zu sehen sind." }
   ];
@@ -3334,6 +3429,71 @@
   var liveKurse = { XAG: null, XAU: null, XPT: null, XPD: null };   // abgefragt, EUR je Gramm
   var handKurse = { XAG: null, XAU: null, XPT: null };     // von Hand eingetragen
   var liveStand = null;                                    // Zeitpunkt der letzten Abfrage
+
+  /* Zuletzt bekannte Kurse, über das Schließen der Seite hinaus. Ohne Netz
+   * — Werkstatt im Keller — stünden sonst Materialwert und Metallkalkulation
+   * leer da. Ein alter Kurs wird aber nie als aktueller ausgegeben: jeder
+   * trägt seinen eigenen Zeitpunkt, und die Standzeile nennt ihn, solange
+   * er nicht in dieser Sitzung frisch abgefragt wurde. Je Metall getrennt,
+   * weil eine Abfrage auch nur teilweise gelingen kann. */
+  var KURS_SPEICHER = "tageskurse-v1";
+  var kursZeitpunkt = { XAG: null, XAU: null, XPT: null, XPD: null };
+  var kursFrisch = { XAG: false, XAU: false, XPT: false, XPD: false };
+  var kursAbfrageVersucht = false;
+
+  function speichereKurse() {
+    try {
+      var zeit = {};
+      ABFRAGE_METALLE.forEach(function (m) {
+        zeit[m] = kursZeitpunkt[m] ? kursZeitpunkt[m].toISOString() : null;
+      });
+      localStorage.setItem(KURS_SPEICHER, JSON.stringify({ kurse: liveKurse, zeit: zeit }));
+    } catch (e) {
+      // Speicher gesperrt (privater Modus): nur der Offline-Rückgriff entfällt.
+    }
+  }
+
+  function ladeKurseAusSpeicher() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KURS_SPEICHER) || "null");
+      if (!d || !d.kurse || !d.zeit) return false;
+      var etwas = false;
+      ABFRAGE_METALLE.forEach(function (m) {
+        var v = d.kurse[m], t = d.zeit[m] ? new Date(d.zeit[m]) : null;
+        if (typeof v === "number" && isFinite(v) && v > 0 && t && !isNaN(t)) {
+          liveKurse[m] = v;
+          kursZeitpunkt[m] = t;
+          etwas = true;
+        }
+      });
+      return etwas;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Ein Kurs ist "alt", wenn mit ihm gerechnet wird, er aber nicht aus
+  // einer Abfrage dieser Sitzung stammt. Eine Handeingabe ist nie alt.
+  function kursIstAlt(m) {
+    return handKurse[m] == null && liveKurse[m] != null && !kursFrisch[m];
+  }
+
+  function datumUhrzeit(d) {
+    return d.toLocaleString("de-DE", {
+      day: "2-digit", month: "2-digit", year: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    }) + " Uhr";
+  }
+
+  // Genannt wird immer der älteste Zeitpunkt — ehrlicher als der neueste.
+  function fruehesterZeitpunkt(metalle) {
+    return new Date(Math.min.apply(null, metalle.map(function (m) { return kursZeitpunkt[m].getTime(); })));
+  }
+
+  function aeltesterAlterKurs(metalle) {
+    var alt = metalle.filter(kursIstAlt);
+    return alt.length ? fruehesterZeitpunkt(alt) : null;
+  }
   var kursDiagnose = document.getElementById("kurs-diagnose");
   var wertPdKurs = document.getElementById("wert-pd-kurs");
   var NAME = { XAG: "Silber", XAU: "Gold", XPT: "Platin", XPD: "Palladium",
@@ -3435,6 +3595,34 @@
     kursStand.classList.toggle("fehler", !!istFehler && handAnzahl < METALLE.length);
   }
 
+  /* Standzeile aus dem, was gerade wirkt. Frische Kurse nennen die Uhrzeit
+   * der Abfrage, alte ihr Datum — gemischt beides, damit nie ein alter Kurs
+   * unter einer frischen Uhrzeit steht. false: gar kein abgefragter Kurs. */
+  function zeigeLiveStand() {
+    var mitKurs = ABFRAGE_METALLE.filter(function (m) { return liveKurse[m] != null; });
+    if (!mitKurs.length) return false;
+    var alt = mitKurs.filter(function (m) { return !kursFrisch[m]; });
+    var text, fehler = false, tooltip;
+
+    if (alt.length === mitKurs.length) {
+      text = (kursAbfrageVersucht ? "Kein Netz — zuletzt" : "Zuletzt") +
+        " bekannte Kurse vom " + datumUhrzeit(fruehesterZeitpunkt(alt));
+      fehler = kursAbfrageVersucht;
+      tooltip = "Aus dem Speicher dieses Geräts, nicht frisch abgefragt";
+    } else {
+      text = "Stand: " + liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+      if (alt.length) {
+        text += " · " + alt.map(function (m) { return NAME[m]; }).join(", ") +
+          " zuletzt bekannt vom " + datumUhrzeit(fruehesterZeitpunkt(alt));
+      } else if (mitKurs.length < ABFRAGE_METALLE.length) {
+        text += " · nicht alle Kurse erreichbar";
+      }
+      tooltip = liveStand.toLocaleString("de-DE") + " · Umrechnung über EZB-Referenzkurs";
+    }
+    setzeStand(text, fehler, tooltip);
+    return true;
+  }
+
   // Adressen der Reihe nach probieren, die erste brauchbare Antwort gewinnt.
   function versucheReihe(urls) {
     return urls.reduce(function (kette, url) {
@@ -3485,10 +3673,12 @@
       }
 
       // --- Metalle auswerten (auch ohne Wechselkurs, für die Diagnose) ---
+      // Schlägt ein Metall fehl, bleibt sein letzter bekannter Kurs stehen —
+      // kursFrisch bleibt dann false, und die Standzeile nennt sein Datum.
       var erfolge = 0;
+      kursAbfrageVersucht = true;
       metallErgebnisse.forEach(function (e, i) {
         var m = ABFRAGE_METALLE[i];
-        liveKurse[m] = null;
         if (e.status !== "fulfilled") {
           diagnose.push(NAME[m] + ": " + fehlerKlartext(e.reason));
           return;
@@ -3503,6 +3693,8 @@
         diagnose.push(NAME[m] + ": ok (" + fmt(usdProUnze, 2) + " USD/oz)");
         if (eurProUsd != null) {
           liveKurse[m] = usdProUnze * eurProUsd / UNZE_IN_GRAMM;
+          kursZeitpunkt[m] = new Date();
+          kursFrisch[m] = true;
           erfolge++;
         }
       });
@@ -3512,13 +3704,12 @@
 
       if (erfolge > 0) {
         liveStand = new Date();
-        var uhrzeit = liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-        setzeStand(
-          "Stand: " + uhrzeit + " Uhr" + (erfolge < ABFRAGE_METALLE.length ? " · nicht alle Kurse erreichbar" : ""),
-          false,
-          liveStand.toLocaleString("de-DE") + " · Umrechnung über EZB-Referenzkurs"
-        );
-        kursDiagnose.hidden = erfolge === ABFRAGE_METALLE.length;
+        speichereKurse();
+      }
+      if (zeigeLiveStand()) {
+        // Ganz ohne Netz, aber mit gespeicherten Kursen sagt die Standzeile
+        // schon alles — fünfmal "nicht erreichbar" darunter wäre nur Lärm.
+        kursDiagnose.hidden = erfolge === ABFRAGE_METALLE.length || erfolge === 0;
         return;
       }
 
@@ -3547,10 +3738,9 @@
       handKurse[m] = (this.value.trim() !== "" && !isNaN(v) && v > 0) ? v : null;
       zeigeKachelwerte();
       // Standzeile neu aufbauen, damit sichtbar bleibt, was gerade wirkt
-      if (liveStand && Object.keys(liveKurse).some(function (k) { return liveKurse[k] != null; })) {
-        setzeStand("Stand: " + liveStand.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr",
-          false, liveStand.toLocaleString("de-DE"));
-      } else {
+      if (kursLaeuft) {
+        setzeStand("Kurse werden abgefragt …", false, "");
+      } else if (!zeigeLiveStand()) {
         setzeStand(zaehleHand() ? "" : "Kurse nicht abrufbar", zaehleHand() === 0, "");
       }
       // Steht der Verlauf gerade für dieses Metall offen, neu zeichnen: der
@@ -4652,9 +4842,9 @@
   /* --- Goldankauf: Kurse ---------------------------------------------
    *
    * Bewusst EIGENER Zustand statt Mitbenutzung von liveKurse/handKurse aus
-   * dem Materialwert-Modul: dieses setzt liveKurse[m] zu Beginn jeder
-   * Abfrage auf null zurück. Geteilte Felder hießen, dass eine
-   * fehlgeschlagene Abfrage im einen Reiter die Preise im anderen löscht.
+   * dem Materialwert-Modul: dessen Handeingaben gelten dort und in der
+   * Metallkalkulation, ein Händler will im Ankauf aber seine eigenen Kurse
+   * setzen, ohne die Werkstatt-Rechnungen daneben mitzuverstellen.
    * Die Abfrage selbst benutzt aber genau dieselben Bausteine wie oben
    * (API_METALL, API_WECHSELKURS, versucheReihe, preisAus, UNZE_IN_GRAMM),
    * es wird also dieselbe Quelle auf demselben Weg befragt.
@@ -5974,7 +6164,15 @@
     mkSummeLabel.textContent = haendlerAn ? "Endpreis" : "Rohmaterial gesamt";
 
     // Kursstand: welche Kurse gerade wirken — damit sich die Summe von Hand
-    // nachrechnen lässt — beziehungsweise welcher fehlt.
+    // nachrechnen lässt — beziehungsweise welcher fehlt. Rechnet ein Posten
+    // mit einem Kurs aus dem Speicher statt einer frischen Abfrage, steht
+    // dessen Datum dabei; das verrät keinen Materialwert, gilt also auch
+    // im Händlermodus.
+    var altAb = aeltesterAlterKurs(Object.keys(benutzt).filter(function (m) {
+      return mkHandKurse[m] == null;
+    }));
+    var altHinweis = altAb ? "Zuletzt bekannte Kurse vom " + datumUhrzeit(altAb) +
+      " — gerade nicht abrufbar." : "";
     if (fehlendeNamen.length) {
       mkKursstand.className = "mk-kursstand fehler";
       mkKursstand.textContent = "Für " + fehlendeNamen.join(" und ") +
@@ -5991,10 +6189,10 @@
         var p = mkKurs(m);
         return NAME[m] + " " + fmt(p, p < 10 ? 3 : 2) + " €/g" +
           (mkHandKurse[m] != null ? " (eigener Kurs)" : "");
-      }).join(" · ");
+      }).join(" · ") + (altHinweis ? " · " + altHinweis : "");
     } else {
       mkKursstand.className = "mk-kursstand";
-      mkKursstand.textContent = "";
+      mkKursstand.textContent = mitGewicht ? altHinweis : "";
     }
 
     mkSpeichern();
@@ -6155,6 +6353,15 @@
   // damit sofort etwas dasteht — wie beim Goldankauf.
   if (!mkLadeZustand()) mkNeuerPosten();
   mkHaendlerBereichSetzen(!mkHaendlerBereich.hidden);
+
+  // Zuletzt bekannte Tageskurse erst jetzt einsetzen: zeigeKachelwerte()
+  // rechnet in Materialwert und Metallkalkulation hinein, die dafür beide
+  // fertig aufgebaut sein müssen. Die frische Abfrage folgt beim Öffnen
+  // eines der beiden Reiter und ersetzt, was sie bekommt.
+  if (ladeKurseAusSpeicher()) {
+    zeigeKachelwerte();
+    zeigeLiveStand();
+  }
   mkZeigeKursPlatzhalter();
   berechneMetallkalk();
 
@@ -6517,7 +6724,7 @@
     { id: "tropfen",  name: "Tropfen",         f: 0.3494, lb: 1.50, tiefe: 0.60,
       pfad: "M 3 50 Q 26 8 58 6 A 44 44 0 1 1 58 94 Q 26 92 3 50 Z" },
     { id: "navette",  name: "Navette",         f: 0.3210, lb: 2.00, tiefe: 0.58,
-      pfad: "M 3 50 Q 50 3 97 50 Q 50 97 3 50 Z" },
+      pfad: "M 3 50 Q 50 -44 97 50 Q 50 144 3 50 Z" },   // Scheitel bei y = 3 und 97
     { id: "herz",     name: "Herz",            f: 0.3352, lb: 1.00, tiefe: 0.60,
       pfad: "M 50 96 C 20 70 4 46 4 30 A 21 21 0 0 1 50 24 A 21 21 0 0 1 96 30 C 96 46 80 70 50 96 Z" },
     { id: "trillant", name: "Trillant",        f: 0.3239, lb: 1.00, tiefe: 0.48,
@@ -6606,16 +6813,28 @@
   // langes Baguette die Karte nicht sprengt.
   function stUmriss(form, laenge, breite) {
     var verhaeltnis = (laenge > 0 && breite > 0) ? laenge / breite : form.lb;
-    var h = 88, w = h * verhaeltnis;
-    if (w > 200) { w = 200; h = w / verhaeltnis; }
+    return '<div class="st-umriss-feld">' + schliffSvg(form, verhaeltnis, 88, 200) + '</div>';
+  }
+
+  // Auch von den Schliffformen benutzt, dort nur kleiner.
+  function schliffSvg(form, verhaeltnis, hoehe, maxBreite) {
+    var h = hoehe, w = h * verhaeltnis;
+    if (w > maxBreite) { w = maxBreite; h = w / verhaeltnis; }
     var inhalt = form.pfad
       ? '<path d="' + form.pfad + '" vector-effect="non-scaling-stroke"/>'
       : '<ellipse cx="50" cy="50" rx="47" ry="47" vector-effect="non-scaling-stroke"/>';
-    return '<div class="st-umriss-feld">' +
-      '<svg class="st-umriss" viewBox="0 0 100 100" preserveAspectRatio="none" ' +
+    return '<svg class="st-umriss" viewBox="0 0 100 100" preserveAspectRatio="none" ' +
            'width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" ' +
-           'role="img" aria-label="Umriss: ' + form.name + '">' + inhalt + '</svg>' +
-    '</div>';
+           'role="img" aria-label="Umriss: ' + form.name + '">' + inhalt + '</svg>';
+  }
+
+  /* Umgekehrt: mit den üblichen Proportionen der Form ist alles an die
+   * Breite gekoppelt — Länge = Breite · Verhältnis, Tiefe = Breite · Tiefenanteil.
+   * Eingesetzt ergibt sich Breite³, also die dritte Wurzel. */
+  function stMasseAusGewicht(form, stein, karat) {
+    var nenner = form.lb * form.tiefe * form.f * stein.sg;
+    var breite = Math.cbrt(karat * 200 / nenner);
+    return { nenner: nenner, breite: breite, laenge: breite * form.lb, tiefe: breite * form.tiefe };
   }
 
   function stKachel(label, wert) {
@@ -6716,13 +6935,8 @@
       return;
     }
 
-    /* Umgekehrt: mit den üblichen Proportionen der Form ist alles an die
-     * Breite gekoppelt — Länge = Breite · Verhältnis, Tiefe = Breite · Tiefenanteil.
-     * Eingesetzt ergibt sich Breite³, also die dritte Wurzel. */
-    var nenner = form.lb * form.tiefe * form.f * stein.sg;
-    var breiteZ = Math.cbrt(ziel * 200 / nenner);
-    var laengeZ = breiteZ * form.lb;
-    var tiefeZ = breiteZ * form.tiefe;
+    var z = stMasseAusGewicht(form, stein, ziel);
+    var nenner = z.nenner, breiteZ = z.breite, laengeZ = z.laenge, tiefeZ = z.tiefe;
 
     stErgebnis.innerHTML =
       '<div class="result-main">' +
@@ -6749,7 +6963,7 @@
       '</div>' +
       formelAnzeige([
         { titel: "Alles an die Breite gekoppelt",
-          formel: "L = B · " + mkMassZahl(form.lb) + "     T = B · " + fmt(form.tiefe, 3),
+          formel: "L = B · " + mkMassZahl(form.lb) + ",  T = B · " + fmt(form.tiefe, 3),
           hinweis: "Mit den üblichen Proportionen dieser Form hängen Länge und Tiefe " +
                    "an der Breite — damit bleibt eine einzige Unbekannte." },
         { titel: "Nach der Breite auflösen",
@@ -6759,7 +6973,7 @@
                      "B = ∛" + fmt(ziel * 200 / nenner, 1)],
           ergebnis: "B = " + fmt(breiteZ, 2) + " mm" },
         { titel: "Daraus die übrigen Maße",
-          formel: "L = B · " + mkMassZahl(form.lb) + "     T = B · " + fmt(form.tiefe, 3),
+          formel: "L = B · " + mkMassZahl(form.lb) + ",  T = B · " + fmt(form.tiefe, 3),
           schritte: (form.rund ? [] : ["L = " + fmt(breiteZ, 2) + " · " + mkMassZahl(form.lb) +
                        " = " + fmt(laengeZ, 2) + " mm"])
             .concat(["T = " + fmt(breiteZ, 2) + " · " + fmt(form.tiefe, 3) + " = " +
@@ -6809,6 +7023,120 @@
   stBaueMassfelder();
   stModusAnzeigen();
   berechneStein();
+
+  /* --- Modul 4: Schliffformen -------------------------------------------
+   *
+   * Nachschlagetafel: Name, Umriss, wie geschliffen und wie gefasst wird.
+   * Umriss, Proportionen und Formfaktor kommen aus ST_FORMEN — dieselben
+   * Zahlen wie im Steingewicht, damit beide Module dieselbe Form meinen.
+   * Dazu je Form die Maße eines Steins vorgegebenen Gewichts, über
+   * stMasseAusGewicht(): so lassen sich die Formen bei gleichem Gewicht
+   * nebeneinander vergleichen — ein Karat Navette wirkt größer als ein
+   * Karat Brillant, weil er flacher und länger ist.
+   */
+  var SF_INFO = {
+    rund:     { auch: "Round Brilliant", schliff: "Brillantschliff, 57 Facetten (58 mit Kalette)",
+                lb: "1,00", fassen: "Vier oder sechs Krappen, Zarge oder Chaton — die unempfindlichste Form." },
+    oval:     { auch: "Oval Brilliant", schliff: "Brillantschliff, abgewandelt", lb: "1,30–1,50",
+                fassen: "Vier bis sechs Krappen. Je länger der Stein, desto eher zeigt sich quer ein dunkler Streifen (Bow-Tie-Effekt)." },
+    kissen:   { auch: "Cushion", schliff: "Brillantschliff, abgewandelt", lb: "1,00–1,20",
+                fassen: "Vier Krappen, gern als Doppelkrappen; die gerundeten Ecken sind unempfindlich." },
+    prinzess: { auch: "Princess", schliff: "Brillantschliff, abgewandelt", lb: "1,00–1,05",
+                fassen: "Die spitzen Ecken brechen leicht — mit V-Krappen oder Eckkrappen schützen." },
+    smaragd:  { auch: "Emerald Cut, Achteck", schliff: "Treppenschliff", lb: "1,30–1,50",
+                fassen: "Die abgeschrägten Ecken schützen den Stein. Die große offene Tafel zeigt Einschlüsse deutlich." },
+    baguette: { auch: "Stäbchen", schliff: "Treppenschliff", lb: "2,00 und länger",
+                fassen: "Klassisch in der Schienenfassung, oft als Begleitsteine neben einem Mittelstein." },
+    tropfen:  { auch: "Pear, Birne", schliff: "Brillantschliff, abgewandelt", lb: "1,45–1,75",
+                fassen: "Die Spitze mit einer V-Krappe schützen. Bow-Tie-Effekt möglich." },
+    navette:  { auch: "Marquise", schliff: "Brillantschliff, abgewandelt", lb: "1,75–2,25",
+                fassen: "Beide Spitzen mit V-Krappen schützen. Bow-Tie-Effekt möglich." },
+    herz:     { auch: "Heart", schliff: "Brillantschliff, abgewandelt", lb: "0,90–1,10",
+                fassen: "Spitze mit V-Krappe, dazu je eine Krappe an den Bögen. Unter etwa 0,5 ct ist die Form kaum noch zu erkennen." },
+    trillant: { auch: "Trillion, Triangel", schliff: "Brillantschliff, abgewandelt", lb: "1,00",
+                fassen: "Alle drei Ecken mit V-Krappen schützen; oft als seitliche Begleitsteine." }
+  };
+
+  var SF_KARAT = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3];
+  var sfKaratSelect = document.getElementById("sf-karat");
+  var sfSteinSelect = document.getElementById("sf-stein");
+  var sfListe = document.getElementById("sf-liste");
+
+  function sfMasse(form, m) {
+    return form.rund
+      ? "Ø " + fmt(m.breite, 1) + " mm"
+      : fmt(m.laenge, 1) + " × " + fmt(m.breite, 1) + " mm";
+  }
+
+  function zeigeSchliffformen() {
+    var karat = parseFloat(sfKaratSelect.value);
+    var stein = stStein(sfSteinSelect.value);
+
+    // Rechenweg zuerst: der Kasten klappt dort auf, wo der Punkt sitzt,
+    // statt unter zehn Zeilen außer Sicht.
+    sfListe.innerHTML = '<div class="card sf-karte">' +
+      formelAnzeige([
+        { titel: "Maße aus dem Gewicht, je Form",
+          formel: "B = ∛( ct · 200 / (L/B · T/B · Formfaktor · ρ) )",
+          schritte: ["ct = " + fmt(karat, 2) + ",  ρ = " + fmt(stein.sg, 2) + " g/cm³ (" + stein.name + ")"],
+          hinweis: "L/B, T/B und Formfaktor sind je Form die üblichen Proportionen — " +
+                   "dieselben wie im Steingewicht, dort steht auch der Rechenweg Zahl für Zahl." },
+        { titel: "Die übrigen Maße",
+          formel: "L = B · L/B,  T = B · T/B" }
+      ]) +
+      ST_FORMEN.map(function (form) {
+        var info = SF_INFO[form.id];
+        var m = stMasseAusGewicht(form, stein, karat);
+        return '<div class="sf-zeile" data-form="' + form.id + '">' +
+          '<div class="sf-umriss">' + schliffSvg(form, form.lb, 50, 76) + '</div>' +
+          '<div class="sf-text">' +
+            '<div class="sf-kopf">' +
+              '<span class="sf-name">' + form.name + '</span>' +
+              '<span class="sf-auch">' + info.auch + '</span>' +
+            '</div>' +
+            '<div class="sf-masse">' + sfMasse(form, m) +
+              '<span class="sf-tiefe"> · Tiefe ' + fmt(m.tiefe, 1) + ' mm</span></div>' +
+            '<dl class="sf-daten">' +
+              '<dt>Schliff</dt><dd>' + info.schliff + '</dd>' +
+              '<dt>Länge : Breite</dt><dd>' + info.lb + '</dd>' +
+            '</dl>' +
+            '<p class="sf-fassen">' + info.fassen + '</p>' +
+            '<button type="button" class="sf-zum-stein" data-form="' + form.id + '">Gewicht schätzen →</button>' +
+          '</div>' +
+        '</div>';
+      }).join("") +
+    '</div>';
+  }
+
+  // Vom Nachschlagen direkt zum Rechnen: Form und Steinart mitnehmen.
+  sfListe.addEventListener("click", function (e) {
+    var knopf = e.target.closest(".sf-zum-stein");
+    if (!knopf) return;
+    stFormSelect.value = knopf.getAttribute("data-form");
+    stSteinSelect.value = sfSteinSelect.value;
+    stBaueMassfelder();
+    document.querySelector('#st-mode button[data-mode="gewicht"]').click();
+    document.querySelector('.tab[data-tab="stein"]').click();
+    window.scrollTo(0, 0);
+    var erstesFeld = stMasseHost.querySelector(".st-mass-wert");
+    if (erstesFeld) erstesFeld.focus();
+  });
+
+  sfKaratSelect.innerHTML = SF_KARAT.map(function (k) {
+    return '<option value="' + k + '">' + fmt(k, 2) + ' ct</option>';
+  }).join("");
+  sfKaratSelect.value = "1";
+  sfSteinSelect.innerHTML = stSteinSelect.innerHTML;
+  sfKaratSelect.addEventListener("change", zeigeSchliffformen);
+  sfSteinSelect.addEventListener("change", zeigeSchliffformen);
+  zeigeSchliffformen();
+
+  // Offline startbar: sw.js legt die Seite beim ersten Besuch im Speicher
+  // ab. Geht nur über http(s) — bei file:// oder in Vorschauen still
+  // übergangen, der Rechner läuft dann wie bisher, nur ohne Offline-Start.
+  if ("serviceWorker" in navigator && echterUrsprung) {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
 })();
 </script>
 
