@@ -141,6 +141,10 @@
     padding: 1rem;
     max-width: 640px;
     margin: 0 auto;
+    /* Mindestens bildschirmhoch: nach einem Reiterwechsel bleibt die Leiste
+       oben angedockt. Ein kurzes Modul (Einheiten) wäre sonst zu niedrig,
+       um so weit zu scrollen, und die Kopfzeile rutschte wieder ins Bild. */
+    min-height: 100vh;
   }
 
   .panel { display: none; }
@@ -2723,6 +2727,11 @@
 
   // --- Tab-Umschaltung ---
   var REITER_SPEICHER = "letzter-reiter";
+  // Die Kopfzeile darüber scrollt normal mit, deshalb ist ihre Unterkante
+  // die Stelle, an der die Leiste andockt — unabhängig davon, ob sie gerade
+  // klebt (offsetTop der klebenden Leiste selbst wäre dann verschoben).
+  var kopf = document.querySelector("header");
+  function andockStelle() { return kopf.offsetTop + kopf.offsetHeight; }
   var tabs = tabBar.querySelectorAll(".tab");
 
   // Weicher Rand nur dort, wo die Leiste noch weitergeht
@@ -2751,8 +2760,12 @@
         panel.classList.toggle("active", panel.id === "panel-" + target);
       });
       zeigeReiter(tab, true);
-      // Neues Modul von seinem Anfang an zeigen, nicht mitten drin
-      if (window.scrollY > 0) window.scrollTo(0, 0);
+      // Neues Modul von seinem Anfang an zeigen, nicht mitten drin. Ist die
+      // Leiste schon oben angedockt, bleibt sie es: zurück nur bis zur
+      // Andockstelle, nicht bis ganz nach oben zum Logo. Ist das Logo noch
+      // zu sehen, bleibt die Seite, wo sie ist.
+      var andocken = andockStelle();
+      if (window.scrollY > andocken) window.scrollTo(0, andocken);
       try { localStorage.setItem(REITER_SPEICHER, target); } catch (e) { /* privat */ }
     });
   });
@@ -7349,9 +7362,8 @@
     stBaueMassfelder();
     document.querySelector('#st-mode button[data-mode="gewicht"]').click();
     document.querySelector('.tab[data-tab="stein"]').click();
-    window.scrollTo(0, 0);
     var erstesFeld = stMasseHost.querySelector(".st-mass-wert");
-    if (erstesFeld) erstesFeld.focus();
+    if (erstesFeld) erstesFeld.focus({ preventScroll: true });
   });
 
   sfKaratSelect.innerHTML = SF_KARAT.map(function (k) {

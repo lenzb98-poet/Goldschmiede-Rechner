@@ -13,12 +13,55 @@ test.describe("Reiterleiste", () => {
     await expect(page.locator('.tab[data-tab="mohs"]')).toBeAttached();
   });
 
-  test("Wechsel zeigt das neue Modul von oben", async ({ page }) => {
+  // Unterkante der Kopfzeile: dort dockt die Leiste an
+  const andockStelle = (page) => page.evaluate(() => {
+    const k = document.querySelector("header");
+    return k.offsetTop + k.offsetHeight;
+  });
+
+  // Angedockt und Logo außer Sicht — die Leiste steht bündig oben
+  async function buendigOben(page) {
+    await expect.poll(async () => Math.round((await page.locator(".tab-leiste").boundingBox()).y)).toBe(0);
+    const kopf = await page.locator("header").boundingBox();
+    expect(kopf.y + kopf.height).toBeLessThanOrEqual(1);
+  }
+
+  for (const [nach, art] of [["einheiten", "kurzes"], ["mohs", "langes"]]) {
+    test(`angedockt bleibt angedockt, auch beim Wechsel in ein ${art} Modul`, async ({ page }) => {
+      await reiter(page, "umfang");
+      await page.mouse.wheel(0, 1500);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+      await page.click(`.tab[data-tab="${nach}"]`);
+      // zurück genau bis zur Andockstelle: Modul von seinem Anfang an, Logo bleibt weg
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(await andockStelle(page));
+      await buendigOben(page);
+    });
+  }
+
+  test("mehrere Wechsel hintereinander bleiben bündig", async ({ page }) => {
     await reiter(page, "umfang");
     await page.mouse.wheel(0, 1500);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+    for (const nach of ["einheiten", "ring", "schliff", "legierung"]) {
+      await page.click(`.tab[data-tab="${nach}"]`);
+      await buendigOben(page);
+    }
+  });
+
+  test("mit sichtbarem Logo bleibt die Seite, wo sie ist", async ({ page }) => {
     await page.click('.tab[data-tab="einheiten"]');
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await page.evaluate(() => window.scrollTo(0, 20));                // Logo halb im Bild
+    await page.click('.tab[data-tab="legierung"]');
+    expect(await page.evaluate(() => window.scrollY)).toBe(20);
+  });
+
+  test("„Gewicht schätzen“ aus den Schliffformen bleibt ebenfalls angedockt", async ({ page }) => {
+    await reiter(page, "schliff");
+    await page.locator('.sf-zeile[data-form="herz"] .sf-zum-stein').scrollIntoViewIfNeeded();
+    await page.click('.sf-zeile[data-form="herz"] .sf-zum-stein');
+    await expect(page.locator("#panel-stein")).toHaveClass(/active/);
+    await buendigOben(page);
   });
 
   test("gewählter Reiter rückt ins Bild", async ({ page }) => {
