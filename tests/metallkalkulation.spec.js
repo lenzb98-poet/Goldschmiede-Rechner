@@ -16,7 +16,6 @@ const VOL = {
   runddraht: (m) => Math.PI * (m[0] / 2) ** 2 * m[1],
   vierkant: (m) => m[0] * m[0] * m[1],
   halbrund: (m) => Math.PI * (m[0] / 2) ** 2 / 2 * m[1],
-  rohr: (m) => Math.PI * ((m[0] / 2) ** 2 - (m[0] / 2 - m[1]) ** 2) * m[2],
   kugel: (m) => 4 / 3 * Math.PI * (m[0] / 2) ** 3
 };
 
@@ -28,8 +27,11 @@ async function posten(page, i, { form, material = "XAU", fein = "585", masse, na
   if (form) await z.locator(".mk-form").selectOption(form);
   await z.locator(".mk-material").selectOption(material);
   await z.locator(".mk-feingehalt").selectOption(fein);
-  for (let k = 0; k < masse.length; k++) {
-    await z.locator(".mk-mass-wert").nth(k).fill(String(masse[k]).replace(".", ","));
+  // Maße als Liste (Reihenfolge der Felder) oder als { Kennung: Wert }
+  const felder = Array.isArray(masse) ? masse.map((v, k) => [k, v]) : Object.entries(masse);
+  for (const [k, v] of felder) {
+    const feld = typeof k === "number" ? z.locator(".mk-mass-wert").nth(k) : z.locator(`[data-mass="${k}"]`);
+    await feld.fill(String(v).replace(".", ","));
   }
   if (name) await z.locator(".mk-name").fill(name);
 }
@@ -42,7 +44,7 @@ test.beforeEach(async ({ page }) => {
 test.describe("Formen", () => {
   for (const [form, masse] of [
     ["blech", [40, 25, 1.2]], ["runddraht", [1.5, 80]], ["vierkant", [1.5, 80]],
-    ["halbrund", [3, 60]], ["rohr", [6, 0.5, 20]], ["kugel", [4]]
+    ["halbrund", [3, 60]], ["kugel", [4]]
   ]) {
     test(`${form} ${masse.join(" × ")} in Gold 585`, async ({ page }) => {
       await posten(page, 0, { form, masse });
@@ -80,11 +82,11 @@ test.describe("Formen", () => {
     await expect(zeile(page).locator(".mk-mass-wert")).toHaveCount(1);
     await expect(zeile(page).locator(".mk-mass-wert")).toHaveValue("");
     await zeile(page).locator(".mk-form").selectOption("rohr");
-    await expect(zeile(page).locator(".mk-mass-wert")).toHaveCount(3);
+    await expect(zeile(page).locator(".mk-mass-wert")).toHaveCount(5);
   });
 
   test("unmögliches Rohr (Wand ≥ Radius) meldet sich, statt zu rechnen", async ({ page }) => {
-    await posten(page, 0, { form: "rohr", masse: [4, 2, 20] });
+    await posten(page, 0, { form: "rohr", masse: { d: 4, w: 2, l: 20 } });
     await expect(zeile(page).locator(".mk-zeile-gewicht")).toContainText("kein");
     await expect(summe(page)).toHaveText(/^—\s*€$/);
   });
@@ -93,6 +95,79 @@ test.describe("Formen", () => {
     await zeile(page).locator(".mk-form").selectOption("blech");
     await zeile(page).locator(".mk-mass-wert").first().fill("40");
     await expect(zeile(page).locator(".mk-zeile-gewicht")).toHaveText("—");
+  });
+});
+
+test.describe("Rohr: zwei beliebige Querschnittsmaße genügen", () => {
+  // Unabhängig nachgerechnet: V = π/4 · (Da² − Di²) · L
+  const rohrGramm = (da, di, l) => Math.PI / 4 * (da * da - di * di) * l / 1000 * DICHTE.XAU[585];
+  const feld = (page, id) => zeile(page).locator(`[data-mass="${id}"]`);
+  const gewicht = (page) => zeile(page).locator(".mk-zeile-gewicht");
+
+  // Jede Paarung der vier Maße für dasselbe Rohr: Ø 6 außen, Ø 5 innen, Wand 0,5
+  for (const [name, masse] of [
+    ["Ø außen + Wand", { d: 6, w: 0.5 }],
+    ["Ø außen + Ø innen", { d: 6, di: 5 }],
+    ["Ø innen + Wand", { di: 5, w: 0.5 }],
+    ["Innenumfang + Wand", { ui: 5 * Math.PI, w: 0.5 }],
+    ["Innenumfang + Ø außen", { ui: 5 * Math.PI, d: 6 }]
+  ]) {
+    test(name, async ({ page }) => {
+      await posten(page, 0, { form: "rohr", masse: { ...masse, l: 20 } });
+      await expect(gewicht(page)).toHaveText(de(rohrGramm(6, 5, 20), 2) + " g");
+    });
+  }
+
+  test("die fehlenden Maße erscheinen im leeren Feld", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { d: 6, w: 0.5 } });
+    await expect(feld(page, "di")).toHaveAttribute("placeholder", "5");
+    await expect(feld(page, "ui")).toHaveAttribute("placeholder", de(5 * Math.PI, 2));
+    await expect(feld(page, "di")).toHaveClass(/abgeleitet/);
+    await expect(feld(page, "di")).toHaveValue("");               // nur angezeigt, nicht eingetragen
+    await expect(feld(page, "d")).not.toHaveClass(/abgeleitet/);
+    // Länge fehlt noch: Maße schon ergänzt, aber noch kein Gewicht
+    await expect(gewicht(page)).toHaveText("—");
+  });
+
+  test("ohne zwei Maße keine Ergänzung, Beispielwerte bleiben", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { d: 6, l: 20 } });
+    await expect(feld(page, "di")).toHaveAttribute("placeholder", "5");   // Beispielwert
+    await expect(feld(page, "di")).not.toHaveClass(/abgeleitet/);
+    await expect(gewicht(page)).toHaveText("—");
+  });
+
+  test("ein zusätzlicher, gerundeter Umfang wird nur geprüft — gerechnet wird mit den Durchmessern", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { d: 6, w: 0.5, ui: "15,7", l: 20 } });
+    await expect(gewicht(page)).toHaveText(de(rohrGramm(6, 5, 20), 2) + " g");
+  });
+
+  test("widersprüchliche Maße werden gemeldet statt gerechnet", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { d: 6, di: 4, w: 0.5, l: 20 } });
+    await expect(gewicht(page)).toHaveText("Ø außen, Ø innen und Wand widersprechen sich");
+    await expect(summe(page)).toHaveText(/^—\s*€$/);
+
+    await posten(page, 0, { form: "rohr", masse: { d: "", di: 5, w: "", ui: 17, l: 20 } });
+    await expect(gewicht(page)).toHaveText("Ø innen und Innenumfang passen nicht zusammen");
+
+    await posten(page, 0, { form: "rohr", masse: { d: 6, di: "", w: 0.5, ui: 17, l: 20 } });
+    await expect(gewicht(page)).toHaveText("Innenumfang passt nicht zu Ø außen und Wand");
+  });
+
+  test("Aufschlüsselung und Rechenweg nennen die Rohrmaße", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { ui: 5 * Math.PI, w: 0.5, l: 20 } });
+    await expect(page.locator("#mk-aufschluesselung")).toContainText("Rohr Ø 6 × 0,5 Wand × 20 mm");
+    await page.click(".mk-ergebnis-karte .formel-knopf");
+    await expect(page.locator(".mk-ergebnis-karte .formel-box")).toContainText("Ø innen 5,00");
+  });
+
+  test("übersteht das Neuladen, errechnete Maße inklusive", async ({ page }) => {
+    await posten(page, 0, { form: "rohr", masse: { d: 6, ui: 5 * Math.PI, l: 20 } });
+    await page.reload();
+    await reiter(page, "metallkalk");
+    await expect(feld(page, "d")).toHaveValue("6");
+    await expect(feld(page, "w")).toHaveAttribute("placeholder", "0,5");
+    await expect(feld(page, "w")).toHaveClass(/abgeleitet/);
+    await expect(gewicht(page)).toHaveText(de(rohrGramm(6, 5, 20), 2) + " g");
   });
 });
 
