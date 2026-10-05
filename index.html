@@ -150,6 +150,21 @@
   .panel { display: none; }
   .panel.active { display: block; }
 
+  /* Wischen: senkrecht scrollt der Browser, waagerecht gehört die Geste dem
+     Modulwechsel. Während des Wischens folgt das Modul dem Finger, danach
+     gleitet das neue von der Seite herein. */
+  main { touch-action: pan-y; }
+  .panel { transition: transform 0.18s ease-out; }
+  .panel.wischt { transition: none; }
+  .panel.rein-von-rechts { animation: rein-von-rechts 0.2s ease-out; }
+  .panel.rein-von-links { animation: rein-von-links 0.2s ease-out; }
+  @keyframes rein-von-rechts { from { transform: translateX(28px); opacity: 0.35; } to { transform: none; opacity: 1; } }
+  @keyframes rein-von-links { from { transform: translateX(-28px); opacity: 0.35; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .panel { transition: none; }
+    .panel.rein-von-rechts, .panel.rein-von-links { animation: none; }
+  }
+
   .card {
     scroll-margin-top: 4.6rem;       /* Platz für die klebende Reiterleiste */
     background: var(--panel);
@@ -2780,6 +2795,96 @@
     });
   });
   tabRaender();
+
+  /* --- Wischen wechselt das Modul ---------------------------------------
+   *
+   * Nach links gewischt kommt das nächste Modul, nach rechts das vorige —
+   * in der Reihenfolge der Leiste, ohne Rundlauf. Gewechselt wird über einen
+   * Klick auf den Nachbarreiter, damit alles dabei genauso passiert wie beim
+   * Antippen (Andocken, Merken, Kursabfrage beim Materialwert).
+   *
+   * Nur eindeutig waagerechte Gesten zählen: Die Richtung wird nach den
+   * ersten Pixeln festgelegt, senkrecht bleibt es normales Scrollen. Wer
+   * waagerecht schon selbst etwas vorhat, behält seine Geste: der
+   * Kursverlauf (Ablesen per Finger), Schieberegler, das Feld, in dem man
+   * gerade tippt, und alles, was selbst seitlich scrollt.
+   */
+  var wischHost = document.getElementById("panels");
+  var WISCH_RICHTUNG_AB = 12;     // px, ab hier steht die Richtung fest
+  var WISCH_MINDESTENS = 70;      // px Weg für einen Wechsel …
+  var WISCH_SCHWUNG = 0.5;        // … oder so schnell (px/ms) bei mindestens 40 px
+  var wisch = null;
+
+  function wischGesperrt(el) {
+    for (; el && el !== wischHost; el = el.parentElement) {
+      if (el.matches(".verlauf-chart, input[type='range']")) return true;
+      if (el === document.activeElement && el.matches("input, textarea")) return true;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        var ox = getComputedStyle(el).overflowX;
+        if (ox === "auto" || ox === "scroll") return true;
+      }
+    }
+    return false;
+  }
+
+  function aktivesPanel() { return wischHost.querySelector(".panel.active"); }
+  function nachbarReiter(schritt) {
+    var liste = Array.prototype.slice.call(tabs);
+    var i = liste.indexOf(tabBar.querySelector(".tab.active"));
+    return liste[i + schritt] || null;
+  }
+
+  wischHost.addEventListener("touchstart", function (e) {
+    if (e.touches.length !== 1 || wischGesperrt(e.target)) { wisch = null; return; }
+    var t = e.touches[0];
+    wisch = { x: t.clientX, y: t.clientY, zeit: Date.now(), richtung: null, dx: 0 };
+  }, { passive: true });
+
+  wischHost.addEventListener("touchmove", function (e) {
+    if (!wisch || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dx = t.clientX - wisch.x, dy = t.clientY - wisch.y;
+    if (!wisch.richtung) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < WISCH_RICHTUNG_AB) return;
+      wisch.richtung = Math.abs(dx) > Math.abs(dy) * 1.2 ? "quer" : "hoch";
+    }
+    if (wisch.richtung !== "quer") return;
+    wisch.dx = dx;
+    // Das Modul folgt dem Finger ein Stück; ohne Nachbarn nur zögerlich,
+    // wie eine Feder — man merkt, dass dort nichts mehr kommt.
+    var panel = aktivesPanel();
+    var hatNachbar = !!nachbarReiter(dx < 0 ? 1 : -1);
+    panel.classList.add("wischt");
+    panel.style.transform = "translateX(" + (dx * (hatNachbar ? 0.4 : 0.12)).toFixed(1) + "px)";
+  }, { passive: true });
+
+  function wischEnde() {
+    if (!wisch) return;
+    var w = wisch;
+    wisch = null;
+    var panel = aktivesPanel();
+    panel.classList.remove("wischt");
+    panel.style.transform = "";
+    if (w.richtung !== "quer") return;
+
+    var dauer = Math.max(1, Date.now() - w.zeit);
+    var weit = Math.abs(w.dx) >= WISCH_MINDESTENS;
+    var schnell = Math.abs(w.dx) >= 40 && Math.abs(w.dx) / dauer >= WISCH_SCHWUNG;
+    if (!weit && !schnell) return;                    // zurückfedern
+
+    var ziel = nachbarReiter(w.dx < 0 ? 1 : -1);
+    if (!ziel) return;
+    ziel.click();
+    var neu = aktivesPanel();
+    neu.classList.remove("rein-von-rechts", "rein-von-links");
+    void neu.offsetWidth;                             // Animation neu starten
+    neu.classList.add(w.dx < 0 ? "rein-von-rechts" : "rein-von-links");
+  }
+  wischHost.addEventListener("touchend", wischEnde);
+  wischHost.addEventListener("touchcancel", wischEnde);
+  wischHost.addEventListener("animationend", function (e) {
+    e.target.classList.remove("rein-von-rechts", "rein-von-links");
+  });
 
   // --- Enter springt ins nächste Eingabefeld desselben Panels ---
   document.addEventListener("keydown", function (e) {
