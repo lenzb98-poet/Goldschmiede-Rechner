@@ -4,10 +4,13 @@
 # die App liest die Dateien danach von ihrer eigenen Adresse.
 name: Kursverlauf aktualisieren
 
+# Zeitplan vorerst AUS: die LBMA sperrt seit Oktober 2026 auch Abfragen von
+# GitHubs Servern (HTTP 403). Wieder einschalten, sobald eine andere Quelle
+# eingebaut ist:
+#   schedule:
+#     - cron: "23 17 * * 1-5"   # werktags nach dem Londoner Nachmittags-Fixing (UTC)
+#     - cron: "23 8 * * 6"      # samstags, falls Freitag spät nachgereicht wurde
 on:
-  schedule:
-    - cron: "23 17 * * 1-5"   # werktags nach dem Londoner Nachmittags-Fixing (UTC)
-    - cron: "23 8 * * 6"      # samstags, falls die LBMA Freitag spät nachgereicht hat
   workflow_dispatch:
 
 permissions:
