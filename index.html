@@ -4337,7 +4337,21 @@
     return { punkte: punkte.sort(nachDatum), waehrung: "USD" };
   }
 
+  /* Erste Wahl ist die eigene Kopie der LBMA-Daten unter verlauf/, die
+   * GitHub Actions täglich auffrischt (.github/workflows/verlauf.yml): Die
+   * LBMA und Stooq beantworten Abfragen aus fremden Webseiten nicht mehr
+   * (CORS), von der eigenen Adresse aus kann das nicht passieren. Die beiden
+   * Anbieter direkt bleiben als Rückfall, etwa wenn die Seite als Datei
+   * geöffnet wird. "quelle" ist, was unter der Kurve steht — es sind ja
+   * weiterhin die LBMA-Fixings. */
   var VERLAUF_QUELLEN = [
+    {
+      name: "LBMA-Kopie",
+      quelle: "LBMA",
+      url: function (m) { return LBMA_URL[m] ? "verlauf/" + m + ".json" : null; },
+      hole: holeJson,
+      lies: lbmaReihe
+    },
     {
       name: "LBMA",
       url: function (m) { return LBMA_URL[m] || null; },
@@ -4661,7 +4675,7 @@
             throw new Error("Antwort hat ein unerwartetes Format");
           }
           notizen.push(q.name + ": ok (" + erg.punkte.length + " Tage, " + erg.waehrung + ")");
-          erg.quelle = q.name;
+          erg.quelle = q.quelle || q.name;
           erg.notizen = notizen;
           return erg;
         }, function (err) {

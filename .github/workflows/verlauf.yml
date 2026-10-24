@@ -1,0 +1,41 @@
+# Holt täglich die LBMA-Fixings für den Kursverlauf und legt sie unter
+# verlauf/ neben die App. Die LBMA erlaubt Abfragen direkt aus fremden
+# Webseiten nicht (mehr) — vom Server aus gilt diese CORS-Sperre nicht, und
+# die App liest die Dateien danach von ihrer eigenen Adresse.
+name: Kursverlauf aktualisieren
+
+on:
+  schedule:
+    - cron: "23 17 * * 1-5"   # werktags nach dem Londoner Nachmittags-Fixing (UTC)
+    - cron: "23 8 * * 6"      # samstags, falls die LBMA Freitag spät nachgereicht hat
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kursverlauf
+  cancel-in-progress: false
+
+jobs:
+  holen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: LBMA-Daten holen und prüfen
+        run: node werkzeuge/verlauf-holen.js verlauf
+      - name: Geänderte Dateien committen
+        run: |
+          if git diff --quiet -- verlauf && [ -z "$(git ls-files --others --exclude-standard verlauf)" ]; then
+            echo "Keine neuen Kurse."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verlauf
+          git commit -m "Kursverlauf: LBMA-Fixings bis $(date -u +%F)"
+          git push
