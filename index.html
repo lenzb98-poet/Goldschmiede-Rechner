@@ -4706,7 +4706,9 @@
         quelle: paket.erg.quelle,
         // Reicht die Aufzeichnung nicht so weit zurück wie der Zeitraum,
         // sagt die Fußzeile, seit wann es Daten gibt.
-        seit: paket.erg.punkte[0].datum > vonISO ? paket.erg.punkte[0].datum : null,
+        // ("Gesamt" hat keinen Anfang, dort zeigt die Achse den Beginn.)
+        seit: BEREICHE[b].tage != null && paket.erg.punkte[0].datum > vonISO
+          ? paket.erg.punkte[0].datum : null,
         metall: m,
         waehrung: paket.vorb.waehrung,
         ausgeduennt: punkte.length < voll

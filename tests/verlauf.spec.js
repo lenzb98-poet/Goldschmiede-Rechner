@@ -51,6 +51,10 @@ test("reicht die Aufzeichnung nicht so weit zurück, nennt die Fußzeile den Beg
   const fuss = page.locator("#verlauf-inhalt .verlauf-fuss");
   await expect(fuss).toContainText("Aufgezeichnet seit dem " + beginn);
   await expect(fuss).not.toContainText("Nationalbank");                 // gilt nur für Gold
+
+  // bei "Gesamt" zeigt die Achse den Beginn, die Fußzeile wiederholt ihn nicht
+  await page.click('#verlauf-bereiche button[data-bereich="gesamt"]');
+  await expect(fuss).not.toContainText("Aufgezeichnet seit");
 });
 
 test("gerade erst begonnen: freundlicher Hinweis statt Fehler", async ({ page, context }) => {
